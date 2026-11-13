@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Download cache: FileProvider is only allowed to hand out files from here. -->
+    <cache-path name="apk" path="apk/" />
+</paths>

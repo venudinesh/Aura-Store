@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- NightBase. See values/colors.xml for why this colour is duplicated outside the Compose theme. -->
+    <color name="store_background">#FF15120F</color>
+</resources>

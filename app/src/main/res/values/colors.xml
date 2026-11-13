@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- What the system paints before Compose draws a frame: the starting window, and the gap between
+         it and the first composition. It has to live here because that paint happens before any of our
+         code runs. These values mirror Ink50 and NightBase in theme/Color.kt, and ThemeSettingsTest
+         fails the build if the two copies drift apart. -->
+    <color name="store_background">#FFFBF8F4</color>
+</resources>
