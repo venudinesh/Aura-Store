@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The A on its own, as the badge draws it: two filled legs with a cream wedge standing in for the
+  counter, in the 108-space the adaptive canvas uses. tools/render_logo.py carries the same polygon as
+  MARK_POINTS and IconGeometryTest holds the two together.
+
+  White is safe here because the disc behind it is deep amber, not the flat `Accent` field; the cream
+  is the highlight the mark reads by at 48 px.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="1024" height="1024">
+  <polygon points="54,35 40.5,64 67.5,64" fill="#F7EAD2"/>
+  <polygon points="28,70 50.5,31 57.5,31 35,70" fill="#FFFFFF"/>
+  <polygon points="50.5,31 57.5,31 80,70 73,70" fill="#FFFFFF"/>
+</svg>

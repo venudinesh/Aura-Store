@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, kotlin]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build, test and lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Secret sweep
+        # A key must never reach the published tree. The sweep reads every tracked file and looks
+        # for the shapes a credential takes, and it fails the build when it finds one. The self
+        # test plants each shape and says whether the gate still bites.
+        run: |
+          python tools/sweep_secrets.py --self-test
+          python tools/sweep_secrets.py
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Android SDK
+        # The runner image carries the command line tools, but not always on the PATH, and the
+        # setup-android action failed on it before it installed anything. So the tools are found by
+        # hand, the licences are accepted, and the platform is installed if the repository carries it.
+        # Whatever is still missing is fetched by the build itself, which is what the Android plugin
+        # does with a licence accepted SDK.
+        run: |
+          set -uo pipefail
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          export PATH="$SDK/cmdline-tools/latest/bin:$SDK/cmdline-tools/bin:$SDK/tools/bin:$PATH"
+          if command -v sdkmanager >/dev/null; then
+            yes | sdkmanager --licenses > /dev/null 2>&1 || true
+            sdkmanager "platform-tools" || true
+            for pkg in "platforms;android-37" "platforms;android-37.0" "platforms;android-36"; do
+              if sdkmanager "$pkg"; then
+                echo "platform installed: $pkg"
+                break
+              fi
+            done
+          else
+            echo "no sdkmanager on this runner; the build will fetch what it needs"
+          fi
+          ls "$SDK/platforms" || true
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Prose gate
+        run: |
+          python tools/prose_gate.py
+          python tools/anti-ai-slop/tests/test_slopcheck.py
+
+      - name: Assemble, test and lint
+        run: ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --no-daemon --stacktrace
+
+      - name: Upload reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            app/build/reports
+            app/build/test-results
+          if-no-files-found: ignore
+          retention-days: 14

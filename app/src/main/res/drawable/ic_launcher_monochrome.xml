@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The themed (monochrome) launcher icon: the same A the badge draws, in one opaque colour so Android
+  can tint it. It is the only part of the badge that survives being flattened — the disc's gradient
+  and the wordmark do not — which is why the launcher's foreground is the raster and this is the
+  vector.
+
+  Geometry: three filled strokes in the 108-space adaptive canvas, spanning x 28..80 and y 31..70.
+  Its furthest point is 32.5 from the centre, inside the 33.1 the safe circle guarantees and 3.5dp
+  inside the 72dp circle a launcher masks.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M28,70 L50.5,31 H57.5 L35,70 Z
+            M50.5,31 H57.5 L80,70 H73 Z
+            M39.5,53 H68.5 V61 H39.5 Z" />
+</vector>

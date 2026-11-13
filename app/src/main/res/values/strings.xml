@@ -1,0 +1,558 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_name">Aura Store</string>
+
+    <!-- Bottom navigation and brand bar -->
+    <string name="tab_games">Games</string>
+    <string name="tab_apps">Apps</string>
+    <string name="tab_search">Search</string>
+    <string name="tab_browse">Browse</string>
+    <string name="tab_you">You</string>
+    <string name="a11y_downloads">Downloads</string>
+    <plurals name="a11y_downloads_count">
+        <item quantity="one">Downloads, %1$d active</item>
+        <item quantity="other">Downloads, %1$d active</item>
+    </plurals>
+    <string name="a11y_account">Account</string>
+    <string name="a11y_back">Back</string>
+    <!-- Leaving is a question, not a gesture: back at the root opens this dialog. -->
+    <string name="exit_title">Leave Aura Store?</string>
+    <string name="exit_body">Downloads already queued keep running in the background.</string>
+    <string name="exit_confirm">Leave</string>
+    <string name="exit_stay">Stay</string>
+    <string name="toast_update_ignored">Update ignored — restore it under Ignored update</string>
+    <string name="toast_update_ignore_failed">No build to ignore yet — try again once the check finishes</string>
+    <string name="a11y_pause">Pause</string>
+    <string name="a11y_resume">Resume</string>
+    <!-- Doubles as the row menu's narrow door: the same action, reached from the line or from ⋮. -->
+    <string name="a11y_remove">Remove from list</string>
+    <string name="a11y_more">More options</string>
+    <string name="a11y_see_more">See more</string>
+    <!-- Doubles as the label of the chevron that opens this sheet. -->
+    <string name="chooser_build_title">Choose a build</string>
+
+    <!-- The download row's menu. The last two are one gesture apart and do different things, so each
+         says which: the narrow door stops at the download, the wide one takes the installed app too.
+         The narrow one is the row's own close control at the end of the line, so it reuses
+         a11y_remove rather than carrying a second copy of the same words. -->
+    <string name="row_menu_details">Details</string>
+    <string name="row_menu_copy_link">Copy link</string>
+    <string name="row_menu_save">Save file</string>
+    <string name="row_menu_delete_device">Delete file</string>
+    <string name="row_menu_ignore_update">Ignore update</string>
+    <string name="row_menu_ignore_update_note">Stops offering this version — a newer one appears again</string>
+    <string name="detail_update_ignored">Update ignored — a newer version will be offered again</string>
+    <string name="you_ignored_updates">Ignored update</string>
+    <string name="you_ignored_restore">Show again</string>
+
+    <!-- The per-download page. `row_menu_details` doubles as this screen's title because it is the same
+         noun reached from two places; the state sentences here are the page's own, not the row's — a row
+         has one line and says "Ready", the page can afford "Ready to install". -->
+    <string name="download_gone_title">This download is no longer in the queue</string>
+    <string name="download_gone_body">It was removed, or the list was cleared. The app\'s page still has it.</string>
+    <string name="dl_title_with_data">%1$s · data</string>
+    <string name="dl_state_queued">Waiting in the queue</string>
+    <string name="dl_state_downloading">Downloading</string>
+    <string name="dl_state_paused">Paused with %1$s kept on disk</string>
+    <string name="dl_state_reading_archive">Reading the archive</string>
+    <string name="dl_state_unpacking">Unpacking the bundle\'s packages</string>
+    <string name="dl_state_verifying">Verifying the package</string>
+    <string name="dl_state_data_ready">Data ready to add</string>
+    <string name="dl_state_waiting_uninstall">Waiting for the current app to be removed</string>
+    <string name="dl_state_ready">Ready to install</string>
+
+    <!-- The floating download dock above the navigation bar. One line per state: the panel is a
+         control surface, so every sentence has to fit beside an icon and a button. -->
+    <string name="dock_downloading">%1$d%% · %2$s · %3$s left</string>
+    <string name="dock_queued">Queued</string>
+    <string name="dock_verifying">Verifying the download…</string>
+    <string name="dock_paused">Paused at %1$d%%</string>
+    <string name="dock_needs_permission">Downloaded · allow installs to finish</string>
+    <!-- The ready line is the one sentence ``dl_state_ready`` already says. It used to carry the
+         file size, but the panel is only as wide as the bar under it and "Downloaded · 336.0 MB"
+         ran out of row at "336…"; the size lives in the download's own details sheet. -->
+    <string name="dock_awaiting">Downloaded · waiting for your confirmation</string>
+    <!-- A bare count, deliberately: see MoreBadge. There is no word after the number, so no
+         language has an inflection to get wrong. -->
+    <string name="dock_more">+%1$d</string>
+    <string name="dock_dismiss">Hide the download panel</string>
+    <string name="dl_state_needs_permission">Waiting for install permission</string>
+    <string name="dl_state_awaiting">Waiting for you in the system installer</string>
+    <string name="dl_state_installing">Installing</string>
+    <string name="dl_state_installed">Installed</string>
+    <string name="dl_state_data_placed">Data placed</string>
+    <string name="dl_state_failed">Failed</string>
+    <string name="dl_state_canceled">Canceled</string>
+    <string name="dl_progress_bytes">%1$s of %2$s · %3$d%%</string>
+    <string name="dl_progress_unbounded">%1$s downloaded, the host gave no size</string>
+    <string name="dl_progress_nothing">Nothing on disk yet</string>
+    <string name="dl_eta">%1$s · about %2$s left</string>
+    <string name="dl_section_transfer">Transfer</string>
+    <string name="dl_row_host">Host</string>
+    <string name="dl_row_file_game_data">File in the queue (game data)</string>
+    <plurals name="dl_row_file_bundle">
+        <item quantity="one">Bundle in the queue (%1$d package unpacked)</item>
+        <item quantity="other">Bundle in the queue (%1$d packages unpacked)</item>
+    </plurals>
+    <string name="dl_row_file">File in the queue</string>
+    <string name="dl_link_signed">Signed link and this app\'s referer</string>
+    <string name="dl_link_public">Public link</string>
+    <string name="dl_link_how">How the host is asked for it</string>
+    <string name="dl_section_verification">Verification</string>
+    <string name="dl_hash_pending">Hashed as it arrives — the digest appears when the transfer ends.</string>
+    <string name="dl_digest_matched">Matched</string>
+    <string name="dl_digest_mismatch">Mismatch — this file is not what was published</string>
+    <string name="dl_digest_published">Digest the source published (%1$s…)</string>
+    <string name="dl_data_belongs">Belongs to the app in the same queue entry</string>
+    <string name="dl_data_for">Package this data is for</string>
+    <string name="dl_package">Package</string>
+    <string name="dl_not_parsed">Not parsed yet</string>
+    <string name="dl_version">Version</string>
+    <string name="dl_signing_cert">Signing certificate (sha-256)</string>
+    <string name="dl_signer_pinned">Pinned on the first install from here</string>
+    <string name="dl_section_history">History</string>
+    <!-- The short word for a state, shared by the download page's history column and the Install pill that
+         shows the same state on a row. Longer than a button label, shorter than the page's sentence. -->
+    <string name="state_queued">Queued</string>
+    <string name="state_paused">Paused</string>
+    <string name="state_verifying">Verifying</string>
+    <string name="state_ready">Ready</string>
+    <string name="state_needs_permission">Needs permission</string>
+    <string name="state_awaiting">Awaiting confirmation</string>
+    <string name="dl_section_failure">What went wrong</string>
+    <string name="fail_refused">The host refused the file</string>
+    <string name="fail_missing">The file is gone from the catalogue</string>
+    <string name="fail_network">The connection failed</string>
+    <string name="fail_storage">There is no room on this device</string>
+    <string name="fail_package">The file is not an installable package</string>
+    <string name="fail_install">Android would not install it</string>
+    <string name="fail_integrity">The bytes are not the file the source published</string>
+    <string name="fail_unknown">The download failed</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_uninstall">Uninstall</string>
+    <string name="action_add_data">Add data</string>
+    <string name="action_install">Install</string>
+    <string name="action_update">Update</string>
+    <string name="action_open">Open</string>
+    <string name="action_open_again">Add again</string>
+    <string name="action_allow">Allow</string>
+    <string name="action_copy_link">Copy link</string>
+    <string name="action_close">Close</string>
+    <string name="meta_line_fallback">App</string>
+
+    <!-- What a row's action says back. A toast is the only place these sentences appear, so they carry
+         the whole result of a tap. -->
+    <string name="toast_no_download">No download available for this app</string>
+    <string name="toast_no_build_for_device">This app has no build for this phone\'s processor</string>
+    <string name="toast_build_not_for_device">That build is for another processor, not this phone</string>
+    <string name="caption_no_build_for_device">No build for this phone\'s processor (%1$s)</string>
+    <string name="toast_data_placed">Data placed in %1$s</string>
+    <string name="toast_data_exported">Data exported to %1$s</string>
+    <string name="toast_link_copied">Download link copied</string>
+    <string name="toast_no_newer">No newer build is published for this app</string>
+    <string name="toast_saved_to">Saved to %1$s</string>
+    <string name="toast_nothing_to_save">There is no downloaded file to save</string>
+    <string name="toast_file_deleted">Deleted the downloaded file</string>
+    <plurals name="toast_extra_queued">
+        <item quantity="one">%1$s ships %2$d data file with it — it is queued too</item>
+        <item quantity="other">%1$s ships %2$d data files with it — they are queued too</item>
+    </plurals>
+    <!-- The pill's own number while a transfer runs. A bare "%d%%" is a sentence in any locale. -->
+    <string name="percent_int">%1$d%%</string>
+
+    <!-- The queue row's own line. These are the short forms, deliberately not the download page's
+         sentences: a row has one line and an ellipsis waiting for it. -->
+    <string name="row_progress_bytes">%1$s / %2$s</string>
+    <string name="row_paused_bytes">Paused · %1$s</string>
+    <string name="row_reading_archive">Reading archive…</string>
+    <string name="row_unpacking">Unpacking bundle…</string>
+    <string name="row_verifying">Verifying package…</string>
+    <string name="row_ready_to_add">Ready to add</string>
+    <string name="row_needs_uninstall">Needs an uninstall</string>
+    <string name="row_installing">Installing…</string>
+    <string name="row_awaiting_confirm">Waiting for you to confirm</string>
+    <string name="row_needs_permission">Needs install permission</string>
+
+    <!-- The app page. Two strings here deliberately stay in Kotlin: the panel comparison against the
+         catalogue\'s own "About" title, and the artefact role "main" — both read the server\'s text, so
+         translating them would break the match. -->
+    <string name="detail_load_failed">Could not load this app</string>
+    <string name="action_share">Share</string>
+    <string name="share_app_fallback">App on liteapks</string>
+    <string name="clipboard_link_label">download link</string>
+    <string name="detail_open_playstore">Open in Play Store</string>
+    <string name="detail_open_source_browser">Open source page in browser</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="detail_unknown_publisher">Unknown publisher</string>
+    <string name="detail_reviews">%1$s reviews</string>
+    <string name="detail_fact_size">Size</string>
+    <string name="detail_fact_views">Views</string>
+    <string name="detail_host_blocked">%1$s is refusing every request (HTTP 403) right now. Aura Store will fetch another build of this app from a working host.</string>
+    <plurals name="detail_extra_data">
+        <item quantity="one">This build also ships %1$d data file (%2$s). It is queued with the app and added to Android/obb after it installs.</item>
+        <item quantity="other">This build also ships %1$d data files (%2$s). They are queued with the app and added to Android/obb after it installs.</item>
+    </plurals>
+    <string name="detail_mod_notes_none">No mod notes for this build</string>
+    <string name="detail_mod_notice">This is a modified build published by a third-party catalogue, not by %1$s.</string>
+    <string name="detail_the_developer">the developer</string>
+    <string name="detail_read_mod_info">Read MOD info</string>
+    <string name="detail_section_fallback">Section %1$d</string>
+    <string name="detail_about_title">About this app</string>
+    <string name="detail_verified_after">Verified after download</string>
+    <string name="detail_verified_before">Verified before install</string>
+    <string name="detail_package_line">package %1$s · version code %2$s</string>
+    <string name="detail_verified_note">The SHA-256 digest and signing certificate are recorded and shown before install.</string>
+    <string name="detail_signing_cert">Signing certificate</string>
+    <string name="detail_signer_sha">sha-256 %1$s…</string>
+    <string name="detail_signer_pinned">pinned when this app was first installed</string>
+    <string name="detail_signer_none">Not recorded yet for this app on this device</string>
+    <string name="detail_see_details">See details</string>
+    <string name="detail_abi_universal">universal</string>
+    <string name="detail_ratings_title">Ratings and reviews</string>
+    <string name="detail_ratings_note">This catalogue publishes an average and a review count. It exposes no per-star breakdown and no review text, so none is shown rather than invented.</string>
+    <string name="detail_whats_new">What\'s new</string>
+    <string name="detail_last_updated">Last updated on %1$s</string>
+    <string name="detail_unknown_date">an unknown date</string>
+    <string name="detail_notes_none">No release notes are published for this build.</string>
+    <plurals name="detail_versions_listed">
+        <item quantity="one">%1$d version listed — open the chooser to install an older one.</item>
+        <item quantity="other">%1$d versions listed — open the chooser to install an older one.</item>
+    </plurals>
+    <string name="detail_app_info">App info</string>
+    <string name="detail_fact_publisher">Publisher</string>
+    <string name="detail_fact_genre">Genre</string>
+    <string name="detail_fact_build">Build</string>
+    <string name="detail_fact_version">Version</string>
+    <string name="detail_fact_updated">Updated</string>
+    <string name="detail_play_store">Play Store</string>
+    <string name="detail_fact_source">Source</string>
+    <string name="detail_source_fallback">third-party catalogue</string>
+    <string name="detail_similar_apps">Similar apps</string>
+    <string name="detail_disclaimer">Served from a third-party catalogue of modified builds. Aura Store verified the file on this device; it did not receive it from the developer.</string>
+    <string name="mod_info_title">MOD info</string>
+    <string name="mod_dialog_notes_none">The catalogue publishes no mod notes for this build.</string>
+    <string name="chooser_body">The Play Store asks which device to install on. Here the choice is which artefact of this post to download.</string>
+    <string name="chooser_unlabelled">Unlabelled version</string>
+    <!-- The sentence under the page\'s Install pill. It states what the pill will do, so it changes with
+         the queue rather than with the post. -->
+    <string name="caption_installed">%1$s is installed on this device.</string>
+    <string name="caption_this_app">This app</string>
+    <string name="caption_downloading">Downloading · %1$s</string>
+    <string name="caption_verifying">Hashing and parsing the package before it can be installed.</string>
+    <string name="caption_paused">Paused. The partial file is kept and resumes from where it stopped.</string>
+    <string name="caption_permission">Android needs permission to install packages from Aura Store.</string>
+    <string name="caption_failed">The download failed.</string>
+    <string name="caption_awaiting">Waiting for you in the system installer — confirm there, or tap Install to open it again.</string>
+    <string name="caption_default">Verified after download · installs through Android\'s own installer</string>
+
+    <!-- The verification card, which is the differentiator and so gets the most careful wording. -->
+    <string name="verify_title">Verification</string>
+    <string name="verify_hashed">Hashed while it downloads</string>
+    <string name="verify_hashed_body">SHA-256 is computed as the bytes stream, so nothing is read twice.</string>
+    <string name="verify_parsed">Parsed before it can install</string>
+    <string name="verify_parsed_body">Android\'s own package parser reads the file for its package name, version code and signing certificate, so a truncated or corrupt APK never reaches the installer.</string>
+    <string name="verify_pinned">Signer pinned on first install</string>
+    <string name="verify_pinned_body">The signing-certificate digest is stored, so a later update that arrives with a different key is visible rather than silent.</string>
+    <string name="verify_cannot">What this cannot prove</string>
+    <string name="verify_cannot_body">The catalogue publishes no file hashes or signatures. This establishes integrity and identity on the device — not that the catalogue intended to serve this file.</string>
+    <string name="verify_this_download">This download</string>
+    <string name="verify_this_download_body">package %1$s · version code %2$s · sha-256 %3$s… · signer %4$s…</string>
+
+    <!-- Account sheet -->
+    <string name="account_guest">Guest</string>
+    <string name="account_guest_note">This build has no accounts — installs are unattributed</string>
+    <string name="sheet_manage_apps">Manage apps &amp; device</string>
+    <string name="sheet_manage_apps_note">Updates, installed apps, downloads</string>
+    <string name="sheet_downloads">Downloads</string>
+    <string name="sheet_downloads_note">Queue, pause, verify and install</string>
+    <string name="sheet_install_permission">Install permission</string>
+    <string name="sheet_install_permission_note">Allow Android to install downloaded packages</string>
+    <string name="sheet_settings">Settings</string>
+    <string name="sheet_settings_note">Auto-update, sync, storage and security</string>
+    <string name="sheet_about">About &amp; verification</string>
+    <string name="sheet_about_note">What this client checks after a download</string>
+
+    <!-- About dialog -->
+    <string name="about_title">About &amp; verification</string>
+    <string name="about_verified">Verified after every download</string>
+    <string name="about_verified_body">The package is parsed and its signing certificate digest is recorded before the install button appears. Where a source publishes a sha-256, the download is compared with it first.</string>
+    <string name="about_cannot_prove">What it cannot prove</string>
+    <string name="about_cannot_prove_body">This catalogue publishes no file hashes or signatures, so verification establishes integrity and identity locally — not that the catalogue meant to serve this file.</string>
+    <string name="about_updates">Updates</string>
+    <string name="about_updates_body">Apps installed from here are compared build label against build label, so an update goes in place. Other apps on the device are matched against the catalogue\'s listing and checked for a strictly newer version; those are only fetched when you ask, because a build published by someone else may not install over the one you have.</string>
+    <string name="about_close">Close</string>
+    <string name="about_servers">The servers</string>
+    <string name="about_servers_body">This app hosts nothing. It reads LiteAPKs, 9MOD, 5play, GetModsAPK, AN1 and ApkVision, and the files come from those sites\' own storage servers. Each of them keeps the ownership of its content and its trademarks. Thanks to the people who run them.</string>
+
+    <!-- Download notifications -->
+    <string name="channel_downloads">Downloads</string>
+    <string name="channel_downloads_description">Package downloads and install readiness</string>
+    <string name="notify_idle">Downloads idle</string>
+    <plurals name="notify_many">
+        <item quantity="one">Downloading %1$d package</item>
+        <item quantity="other">Downloading %1$d packages</item>
+    </plurals>
+    <string name="notify_many_note">In progress</string>
+    <string name="notify_progress">%1$d%% · %2$s / %3$s</string>
+    <string name="notify_size_unknown">?</string>
+    <string name="notify_verifying">Verifying package…</string>
+
+    <!-- Auto-update notifications -->
+    <string name="updates_channel">Updates</string>
+    <string name="updates_channel_description">Apps on this device that the catalogue has a newer build for</string>
+    <plurals name="updates_available">
+        <item quantity="one">%1$d app has a newer build on Aura Store</item>
+        <item quantity="other">%1$d apps have a newer build on Aura Store</item>
+    </plurals>
+    <plurals name="updates_queued">
+        <item quantity="one">Downloading %1$d update — installs in place, your data stays</item>
+        <item quantity="other">Downloading %1$d updates — installs in place, your data stays</item>
+    </plurals>
+    <string name="updates_wifi_blocked">Auto-update is set to Wi-Fi only and this network isn\'t Wi-Fi</string>
+    <string name="updates_open_app">Open %1$s to update them</string>
+
+    <!-- You tab -->
+    <plurals name="you_count_apps">
+        <item quantity="one">%1$d app</item>
+        <item quantity="other">%1$d apps</item>
+    </plurals>
+
+    <!-- Search -->
+    <string name="search_title">Search</string>
+    <string name="search_hint">Search for apps &amp; games</string>
+    <string name="a11y_clear_search">Clear search</string>
+    <string name="search_recent">Recent</string>
+    <string name="search_trending">Trending searches</string>
+    <string name="search_results">Results</string>
+    <plurals name="search_count">
+        <item quantity="one">%1$d match for \"%2$s\"</item>
+        <item quantity="other">%1$d matches for \"%2$s\"</item>
+    </plurals>
+    <plurals name="search_count_partial">
+        <item quantity="one">%1$d of %2$d match for \"%3$s\"</item>
+        <item quantity="other">%1$d of %2$d matches for \"%3$s\"</item>
+    </plurals>
+    <string name="search_finding">Finding more matches…</string>
+    <string name="search_end">That\'s every match for \"%1$s\".</string>
+    <string name="search_none">No results</string>
+    <string name="search_none_body">Nothing in any catalogue matched \"%1$s\".</string>
+    <string name="search_failed">Search failed</string>
+    <string name="search_load_more_failed">Could not load more</string>
+    <string name="search_suggest">You might also like</string>
+    <string name="search_suggest_subtitle">Popular in this catalogue</string>
+    <string name="try_again">Try again</string>
+
+    <!-- The bottom of a paged list: the feed's charts, a category's own list. -->
+    <string name="list_finding">Loading more…</string>
+    <string name="list_end">That\'s everything in %1$s.</string>
+    <!-- The reach is a constant this app computes from the route's own window, not a quantity it has
+         counted, so it is never one row and the plural lint suggests would have exactly one arm. -->
+    <string name="list_end_capped" tools:ignore="PluralsCandidate">%1$s has more than %2$d rows — the catalogue pages no further.</string>
+    <string name="list_load_more_failed">Could not load more</string>
+
+    <!-- Settings. What each row says about the state it shows. -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_updates">Updates</string>
+    <string name="settings_section_security">Security</string>
+    <string name="settings_section_sources">Catalogue sources</string>
+    <string name="settings_section_storage">Storage</string>
+    <string name="settings_section_about">About</string>
+    <string name="settings_auto_update">Auto-update apps</string>
+    <string name="settings_check_updates">Check for updates</string>
+    <string name="settings_last_sync">Last sync %1$s</string>
+    <string name="settings_check_live">The catalogue is read live on every refresh</string>
+    <string name="settings_refresh_now">Refresh now</string>
+    <string name="settings_app_version">Aura Store version</string>
+    <string name="settings_version_latest">This is the newest build the catalogue publishes</string>
+    <string name="settings_version_available">Version %1$s is available</string>
+    <string name="settings_install_unknown">Install unknown apps</string>
+    <string name="settings_install_allowed">Allowed for Aura Store. Android still shows its own confirmation for every package.</string>
+    <string name="settings_install_needed">Android requires one switch before this app may install packages.</string>
+    <string name="settings_allowed">Allowed</string>
+    <string name="settings_download_notifications">Download notifications</string>
+    <string name="settings_notif_on">The queue reports progress and finished downloads here.</string>
+    <string name="settings_notif_off">Android asked once and the answer was no. Installs still continue inside the app; only the notifications are silent.</string>
+    <string name="settings_notif_managed">Managed in system settings</string>
+    <string name="settings_why_switch">Why the switch exists</string>
+    <string name="settings_why_switch_body">A normal app cannot install packages silently — that is enforced by Android itself. Allowing this app once lets installs continue without leaving the app again; the system\'s own confirmation still appears for each package.</string>
+    <string name="settings_sources_note">LiteAPKs is this app\'s own feed and cannot be switched off. The others are searched only when their switch is on; a source you turn off stops appearing in the \"Download from\" pickers.</string>
+    <string name="settings_default_source">Default download source</string>
+    <string name="settings_default_source_note">Where a download comes from when you have not chosen another source.</string>
+    <string name="settings_source_store">This store</string>
+    <string name="settings_source_store_note">The catalogue this app is built around.</string>
+    <string name="settings_downloaded_packages">Downloaded packages</string>
+    <string name="settings_queue_summary">%1$d in the queue · %2$s cached</string>
+    <string name="settings_clear_finished">Clear finished</string>
+    <string name="settings_save_apks">Save downloaded APKs</string>
+    <string name="settings_save_apks_note">Saved copies go to Downloads/AuraStore and survive clearing the queue</string>
+    <string name="settings_about_body">A Play-Store-shaped client for the liteapks catalogue. Every download is hashed while streaming and parsed before it can be installed.</string>
+    <string name="settings_about_disclaimer">Not affiliated with Google Play or with the apps it lists.</string>
+    <string name="settings_done">Done</string>
+    <!-- The three auto-update choices, in Play's own wording. -->
+    <string name="auto_update_off">Don\'t auto-update apps</string>
+    <string name="auto_update_off_note">Updates are only installed when you ask for them</string>
+    <string name="auto_update_wifi">Over Wi-Fi only</string>
+    <string name="auto_update_wifi_note">Download updates automatically on Wi-Fi</string>
+    <string name="auto_update_any">Over any network</string>
+    <string name="auto_update_any_note">Download updates automatically, including on mobile data</string>
+
+    <!-- Appearance. The palette note is a real warning, not decoration: choosing the wallpaper
+         scheme is what hid this app\'s own colours for its first twenty-eight rounds. -->
+    <!-- Navigation: the floating bar and the glass it is cut from. The bar is a window over the page,
+         so it ships fully transparent; the four sliders each add one layer of material back, and all
+         of them start at zero. theme/Glass.kt owns the meaning of every value. -->
+    <string name="nav_section">Navigation</string>
+    <string name="nav_floating">Floating bar</string>
+    <string name="nav_slide">Sliding pill</string>
+    <string name="nav_slide_note">The selection pill glides between tabs. Off jumps straight to the new one.</string>
+    <string name="nav_icon_motion">Icon motion</string>
+    <string name="nav_icon_motion_note">The selected tab icon pops and fills in. Off changes the state with no motion.</string>
+    <string name="nav_floating_note">Lift the tabs off the edge so the list runs under them</string>
+    <string name="nav_flush">Flat bar pinned to the bottom edge</string>
+    <string name="nav_group_glass">LIQUID GLASS</string>
+    <string name="nav_glass">Enable Liquid Glass</string>
+    <string name="nav_glass_note">Navigation Bar Effects</string>
+    <string name="nav_engine">Running: %1$s</string>
+    <string name="nav_engine_group">GLASS ENGINE</string>
+    <string name="glass_engine_ios13">iOS Liquid Glass (Android 13+)</string>
+    <string name="glass_engine_ios8">iOS Liquid Glass (Android 8+)</string>
+    <string name="glass_engine_classic">Classic Glass (Android 8+)</string>
+    <string name="nav_effects">GLASS EFFECTS</string>
+    <string name="nav_blur">Blur Intensity</string>
+    <string name="nav_chromatic">Chromatic Split</string>
+    <string name="nav_refraction">Refraction Strength</string>
+    <string name="nav_depth">Refraction Depth</string>
+    <string name="nav_layout">SHAPE &amp; LAYOUT</string>
+    <string name="nav_corner">Corner Roundness</string>
+    <string name="nav_width">Bar Width</string>
+    <string name="nav_offset">Bottom Offset</string>
+    <string name="nav_reset">Reset All Glass Settings</string>
+    <string name="nav_reset_note">Back to the look the app ships with</string>
+    <string name="nav_reset_done">Glass settings reset</string>
+    <string name="nav_restore">Restore</string>
+    <string name="nav_reorder">REORDER NAVIGATION BAR</string>
+    <string name="nav_reorder_note">Drag icons to reorder</string>
+    <string name="nav_reorder_hint">Long press and drag to reorder</string>
+    <string name="nav_reorder_reset">Reset navigation order</string>
+    <string name="nav_level">%1$d%%</string>
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_palette">Colours</string>
+    <string name="theme_system">System default</string>
+    <string name="theme_system_note">Follow the phone\'s light and dark setting</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_light_note">Always the light scheme</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_dark_note">Always the dark scheme</string>
+    <string name="palette_house">Aura Store amber</string>
+    <string name="palette_house_note">The house palette, checked for contrast in both schemes</string>
+    <string name="palette_wallpaper">Match my wallpaper</string>
+    <string name="palette_wallpaper_note">Take accent colours from the wallpaper, like the Play Store does</string>
+    <string name="palette_wallpaper_unsupported">Needs Android 12 or newer — showing the house palette</string>
+    <string name="palette_custom">Custom colour</string>
+    <string name="palette_custom_note">Build the palette from one colour you choose</string>
+    <string name="colour_picker_title">Pick the colour</string>
+    <string name="colour_prebuilt">Soft presets</string>
+    <string name="colour_wheel">Colour wheel — drag for the hue and richness</string>
+    <string name="colour_value">Brightness</string>
+    <!-- Prebuilt seeds. All of them are deliberately low-chroma: a vivid seed generates a vivid
+         storefront, and these are here for people who want the tint without the shout. -->
+    <string name="soft_sand">Sand</string>
+    <string name="soft_honey">Honey</string>
+    <string name="soft_clay">Clay</string>
+    <string name="soft_blush">Blush</string>
+    <string name="soft_lilac">Lilac</string>
+    <string name="soft_iris">Iris</string>
+    <string name="soft_sky">Sky</string>
+    <string name="soft_sage">Sage</string>
+    <!-- What a catalogue is, said once instead of in a row that has to fit it. The names themselves
+         (LiteAPKs, 9MOD, …) stay in SourceId: they are brands, not sentences. -->
+    <string name="source_note_liteapks">The catalogue this app is built on</string>
+    <string name="source_note_ninemod">WordPress catalogue, signed storage links</string>
+    <string name="source_note_fiveplay">DLE catalogue, signed R2 files</string>
+    <string name="source_note_getmodsapk">Laravel catalogue, mirror pages</string>
+    <string name="source_note_an1">Modded games, direct file links</string>
+    <string name="source_note_apkvision">Direct and modded Android packages</string>
+
+    <!-- The You tab. -->
+    <string name="you_checking">Checking the catalogue…</string>
+    <string name="you_checked">Checked %1$s</string>
+    <string name="you_just_now">just now</string>
+    <string name="you_update_all">Update all</string>
+    <string name="you_from_us">From Aura Store</string>
+    <string name="you_outside">Installed outside Aura Store</string>
+    <string name="you_get">Get</string>
+    <string name="you_system">Include system</string>
+    <string name="you_view_updates">Updates</string>
+    <string name="you_view_all_apps">All apps</string>
+    <string name="you_clear">Clear</string>
+    <string name="you_in_progress">In progress</string>
+    <string name="you_not_in_progress">Not in progress</string>
+    <string name="you_installs_blocked">Installs are blocked</string>
+    <string name="you_not_in_catalogue">Not in the catalogue</string>
+    <string name="you_up_to_date">Everything\'s up to date</string>
+    <string name="you_check_again">Check again</string>
+    <!-- The three clauses of the sweep's coverage line. Each drops out when it is empty, so none of
+         them may carry a leading separator. PluralsCandidate is off them because they name no noun:
+         the group header above the line is what says these are apps. -->
+    <string name="you_coverage_checked" tools:ignore="PluralsCandidate">%1$d of %2$d apps checked</string>
+    <string name="you_coverage_missed" tools:ignore="PluralsCandidate">%1$d apps aren\'t in the catalogue</string>
+
+    <!-- The \"Download from\" screen: catalogues outside the post feed. -->
+    <string name="src_title">Download from</string>
+    <string name="src_intro">Search the catalogue\'s own API or one of the sites below. Each result\'s files are resolved to a direct link before you tap Download.</string>
+    <string name="src_failed_title">Search failed on %1$s</string>
+    <string name="src_none_title">Nothing on %1$s</string>
+    <string name="src_none_body">No match for \"%1$s\". Try another source, or the site itself.</string>
+    <string name="src_results_title">Results on %1$s</string>
+    <string name="src_downloading">Downloading %1$s from %2$s</string>
+    <string name="src_files">Files</string>
+    <string name="src_hide_files">Hide files</string>
+    <string name="src_resolving">Resolving links…</string>
+    <string name="src_no_file">This page has no downloadable file.</string>
+    <string name="src_file_list_failed">Could not read the file list</string>
+    <string name="action_download">Download</string>
+    <string name="src_open_page">Open page</string>
+    <string name="src_app_page">App page</string>
+
+    <!-- The sheet that asks which source a download comes from. -->
+    <string name="src_picker_title">Download %1$s from</string>
+    <string name="src_picker_body">Choose a source. Each answer is resolved to a direct file link before you download it.</string>
+    <string name="src_pick_file_title">Download %1$s</string>
+    <string name="src_pick_file_body">Choose the file. It comes from %1$s.</string>
+    <string name="src_picker_default">Default</string>
+    <string name="src_picker_searching">Looking for it…</string>
+    <string name="src_picker_none">Not on %1$s</string>
+
+    <!-- A source's own shelf: what it published last and how it groups what it published. -->
+    <string name="src_newest">Newest</string>
+    <string name="src_newest_on">Newest on %1$s</string>
+    <string name="src_from_source">From %1$s</string>
+    <string name="src_unavailable">%1$s did not answer just now.</string>
+
+    <!-- A category term. -->
+    <string name="cat_all">All categories</string>
+    <string name="cat_unavailable">Categories unavailable</string>
+    <string name="cat_empty">This category is empty</string>
+    <string name="cat_no_categories">The catalogue sent no categories</string>
+    <string name="cat_nothing_listed">Nothing is listed under %1$s</string>
+    <string name="cat_could_not_read">This category could not be read</string>
+    <string name="cat_subcategories">Sub-categories</string>
+    <string name="cat_all_in">All in %1$s</string>
+    <plurals name="cat_app_count">
+        <item quantity="one">%1$d app in this category</item>
+        <item quantity="other">%1$d apps in this category</item>
+    </plurals>
+
+    <!-- The three content tabs' shared surface. -->
+    <string name="feed_unreachable">Could not reach the catalogue</string>
+    <string name="feed_list_failed">Could not load this list</string>
+    <string name="feed_unavailable">Catalogue unavailable</string>
+    <string name="feed_top_charts">%1$s top charts</string>
+    <string name="feed_recently_updated">Recently updated in %1$s</string>
+    <string name="feed_trending">Trending in %1$s this week</string>
+    <string name="feed_most_viewed">Most viewed in %1$s</string>
+    <string name="feed_categories">Categories</string>
+    <string name="feed_featured">Featured</string>
+    <string name="feed_source_browse">Browse</string>
+</resources>

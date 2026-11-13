@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!--
+          Test scaffolding, and debug-only by construction: this file is merged into the debug variant
+          and never into the release one. It has to live in the app rather than the androidTest APK
+          because an activity declared in the test package resolves to a different process, and
+          `rememberSaveable` can only be tested through a real Activity recreation.
+        -->
+        <activity
+            android:name=".RestoreProbeActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+    </application>
+
+</manifest>
