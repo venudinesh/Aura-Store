@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: A problem that should not be public
+    url: https://github.com/venudinesh/Aura-Store/security/advisories/new
+    about: A leak of a key, a vulnerability, or someone's private information. Report it in private.
+  - name: The code of conduct
+    url: https://github.com/venudinesh/Aura-Store/blob/kotlin/CODE_OF_CONDUCT.md
+    about: How the project expects people to talk to each other, and how to report a problem with that.
