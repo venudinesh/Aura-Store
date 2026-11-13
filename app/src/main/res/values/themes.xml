@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.AuraStore" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Both of these are the system's own paint, taken before any of our code runs: the starting
+             window is `colorBackground`, and the surface behind the activity is `windowBackground`.
+             The night qualifier on @color/store_background is what makes them dark, because a parent
+             theme cannot be switched per-configuration without duplicating this whole style. -->
+        <item name="android:colorBackground">@color/store_background</item>
+        <item name="android:windowBackground">@color/store_background</item>
+    </style>
+</resources>

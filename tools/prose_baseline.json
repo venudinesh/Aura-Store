@@ -1,0 +1,61 @@
+{
+  "recorded": "2026-11-08",
+  "docs": {
+    "README.md": {
+      "score": 100.0,
+      "blocking": 0
+    },
+    "CONTINUATION.md": {
+      "score": 100.0,
+      "blocking": 0
+    },
+    "HANDOFF.md": {
+      "score": 80.0,
+      "blocking": 0
+    },
+    "CHANGELOG.md": {
+      "score": 94.0,
+      "blocking": 0
+    },
+    "PROBLEM_ANALYSIS.md": {
+      "score": 100.0,
+      "blocking": 0
+    },
+    "docs/ANTI_AI_SLOP.md": {
+      "score": 100.0,
+      "blocking": 0
+    },
+    "docs/ARCHITECTURE.md": {
+      "score": 72.5,
+      "blocking": 0
+    },
+    "docs/AUDIT_AND_FIXES.md": {
+      "score": 80.5,
+      "blocking": 0
+    },
+    "docs/NAVBAR_SETTINGS.md": {
+      "score": 82.0,
+      "blocking": 0
+    },
+    "docs/PORTING_LIQUID_GLASS.md": {
+      "score": 66.0,
+      "blocking": 0
+    },
+    "docs/PROJECT_GUIDE.md": {
+      "score": 77.0,
+      "blocking": 0
+    },
+    "docs/RELEASING.md": {
+      "score": 99.0,
+      "blocking": 0
+    },
+    "docs/SESSION_2026-11-01.md": {
+      "score": 53.5,
+      "blocking": 0
+    },
+    "docs/SESSION_2026-11-03.md": {
+      "score": 71.0,
+      "blocking": 0
+    }
+  }
+}
