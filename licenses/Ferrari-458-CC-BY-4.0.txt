@@ -1,0 +1,17 @@
+Ferrari 458 Italia — 3D model attribution
+=========================================
+
+The NOS download animation in this app draws a car sprite baked from a 3D model:
+
+  "Ferrari 458 Italia" by vicent091036
+  Distributed with the three.js examples as examples/models/gltf/ferrari.glb
+  https://github.com/mrdoob/three.js
+
+Licensed under the Creative Commons Attribution 4.0 International License
+(CC BY 4.0): https://creativecommons.org/licenses/by/4.0/
+
+Changes made for this app: the model was rendered offline to a flat 2D sprite
+(512 px wide, transparent background), the paint colour was shifted to a cool
+silver-blue, the wheels were removed (they are drawn live in the shader), and
+the sprite is scaled, tinted and composited by the dock shader. The model is
+not redistributed in 3D form; only the derived 2D sprite ships.

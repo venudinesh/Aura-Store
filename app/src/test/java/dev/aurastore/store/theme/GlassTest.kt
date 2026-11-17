@@ -3,6 +3,8 @@ package dev.aurastore.store.theme
 import androidx.compose.ui.graphics.Color
 import dev.aurastore.store.data.GlassEngine
 import dev.aurastore.store.data.GlassStyle
+import dev.aurastore.store.data.DEFAULT_GLASS_WIDTH
+import dev.aurastore.store.data.adoptDefaultGlassWidth
 import dev.aurastore.store.data.defaultGlassStyle
 import dev.aurastore.store.data.glassEngineRuns
 import dev.aurastore.store.data.withDefaultMaterial
@@ -35,9 +37,9 @@ class GlassTest {
         // not a full-width slab, while every material slider still starts at zero.
         assertEquals(36f, glassCornerDp(d.corner), 0f)
         assertEquals(0f, glassBottomGapDp(d.offset), 0f)
-        // Width is the one value whose shipped position is not zero: a bar at 0 is 60 % wide, and the
-        // shipped bar is the full content width.
-        assertEquals(1f, glassWidthFraction(d.width), 0.001f)
+        // Width is the one value whose shipped position is not zero: the slider reads 60..150 % of
+        // the content, and the shipped bar is 116 %, a sixth wider than the pill it measures.
+        assertEquals(1.16f, glassWidthFraction(d.width), 0.001f)
         for ((name, v) in listOf(
             "blur" to d.blur, "chromatic" to d.chromatic, "refraction" to d.refraction,
             "depth" to d.depth, "corner" to d.corner, "width" to d.width, "offset" to d.offset,
@@ -120,6 +122,21 @@ class GlassTest {
         val mid = glassEdge(Color(0xFF808080))
         assertTrue(mid.color == Color.White || mid.color == Color.Black)
         assertTrue(mid.scale > 0f)
+    }
+
+    @Test
+    fun theOldDefaultWidthMovesOnceAndAChosenOneStays() {
+        // 100 % was the shipped width before 116 %. An install still sitting on it has no way to say
+        // "I chose this", so it moves with the default exactly once, and the version stamp keeps a
+        // later decision to go back to 100 % from being undone on the next boot.
+        val old = (1f - 0.6f) / 0.9f
+        assertEquals(glassWidthFraction(DEFAULT_GLASS_WIDTH), glassWidthFraction(adoptDefaultGlassWidth(old, false)), 0.001f)
+        assertEquals(1.16f, glassWidthFraction(adoptDefaultGlassWidth(old, false)), 0.001f)
+        assertEquals("already migrated: the choice stands", old, adoptDefaultGlassWidth(old, true), 0f)
+        // A width someone dragged is never rewritten, migration or not.
+        val chosen = (1.3f - 0.6f) / 0.9f
+        assertEquals(chosen, adoptDefaultGlassWidth(chosen, false), 0f)
+        assertEquals(chosen, adoptDefaultGlassWidth(chosen, true), 0f)
     }
 
     @Test

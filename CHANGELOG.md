@@ -3,6 +3,46 @@
 All notable changes to Aura Store. The format follows [Keep a Changelog](https://keepachangelog.com/),
 and the project uses `MAJOR.MINOR.PATCH` versions.
 
+## [1.6.0] - 2026-11-17
+
+### Added
+
+- **The You tab is a profile hub.** A cover, a picture and a frame at the top, then five tabs:
+  Overview, Screen time, Wishlist, Updates and Style. The picture comes from the drawn set or from
+  the gallery, cropped square; the cover is one of four drawn presets or a photo cropped wide.
+- **Eight frames, worn everywhere.** None, Ring, Gold, Neon, Orbit, Laurel, Pulse and Ember. A frame
+  turns around the picture on the profile page and in the top bar of every screen, and holds still
+  when motion is switched off.
+- **Screen time for apps installed from this store.** Today and all time per package, sorted by the
+  time spent, behind Android's usage-access switch. Only packages this store installed are counted.
+- **A wishlist.** The heart on an app page keeps the app in the You tab.
+- **A splash and a first-run tour.** The mark is drawn while the catalogue loads, then three pages
+  name the bar, the dock and the update path. About can show the tour again.
+- **AMOLED black, as its own switch.** Appearance keeps the theme, palette, background and dock
+  choices; AMOLED is a separate switch, not a background style.
+
+### Changed
+
+- **The A was redrawn.** One long letter, legs opened and the bar just above the middle, used by the
+  splash, the avatars, the covers and the launcher. The old wide mark is gone.
+- **Style is the fifth You tab,** so the label fits one line on a phone; the hero keeps the
+  *Customise* word.
+- **The top bar carries the chosen picture and frame** on every screen and updates as Style does.
+
+### Fixed
+
+- **The Updates empty state said the same thing twice.** It has its own body string now.
+- **The avatar mark no longer reached into its frame,** and the cover mark lost the stray tail.
+
+### Signing
+
+The key that signed 1.5.0 was lost, and this release carries a replacement. Android refuses an
+update over an install signed with another key, so a 1.5.0 copy from the releases page has to be
+uninstalled once before 1.6.0 can be installed. The application id is unchanged, and 1.6.0 onward
+keeps the new key.
+
+The version is 1.6.0 and the version code is 10600.
+
 ## [1.5.0] - 2026-11-15
 
 ### Added

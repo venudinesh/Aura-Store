@@ -8,9 +8,12 @@ import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.map
 import dev.aurastore.store.R
 import dev.aurastore.store.install.AutoUpdater
 import dev.aurastore.store.data.AppState
@@ -77,6 +80,21 @@ class StoreActions(
         }
     }
 
+    /**
+     * One row's action, read as the row composes.
+     *
+     * A list used to collect the whole queue and hand every row the same list, so a progress tick on
+     * any transfer recomposed every visible row on the screen. Collected per row, only the row whose
+     * own download changed is invalidated; the rest keep their previous action and are skipped.
+     */
+    @Composable
+    fun liveAction(post: PostSummary, installs: Map<Long, InstallRecord>): RowAction {
+        val rows by remember(post.id) {
+            DownloadEngine.items.map { list -> list.filter { it.postId == post.id && !it.dataFile } }
+        }.collectAsStateWithLifecycle(emptyList())
+        return actionFor(post, installs, rows)
+    }
+
     /** The click handler that matches [actionFor]. */
     fun primary(post: PostSummary): () -> Unit = { runPrimary(post) }
 
@@ -132,6 +150,7 @@ class StoreActions(
                 SourceRequest(
                     title = post.title,
                     cataloguePostId = post.id,
+                    iconUrl = post.imageUrl,
                     preferred = Settings.defaultSource.value,
                 ),
             )
@@ -198,6 +217,7 @@ class StoreActions(
                 SourceRequest(
                     title = post.title,
                     cataloguePostId = post.id,
+                    iconUrl = post.imageUrl,
                     preferred = Settings.defaultSource.value,
                 ),
             )
@@ -311,7 +331,27 @@ class StoreActions(
      */
     fun remove(item: DownloadItem) = DownloadEngine.remove(context, item.id)
 
-    fun clearFinished() = DownloadEngine.clearFinished(context)
+    /** The bulk door: every selected row and its files in one pass, one toast for the batch. */
+    fun removeAll(items: List<DownloadItem>) {
+        if (items.isEmpty()) return
+        DownloadEngine.removeAll(context, items.map { it.id })
+        context.toastPlural(R.plurals.toast_downloads_deleted, items.size, items.size)
+    }
+
+    /**
+     * The bulk door behind "Clear finished": verified, installed and canceled rows leave together.
+     *
+     * A tap on a queue with nothing finished used to do nothing at all, which read as a broken button.
+     * It now says so, and a tap that does clear something says how many rows went.
+     */
+    fun clearFinished() {
+        val cleared = DownloadEngine.clearFinished(context)
+        if (cleared == 0) {
+            context.toast(R.string.toast_nothing_finished, short = true)
+            return
+        }
+        context.toastPlural(R.plurals.toast_downloads_cleared, cleared, cleared)
+    }
 
     fun grantInstallPermission() = Installer.openUnknownSourcesSettings(context)
 

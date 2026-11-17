@@ -139,13 +139,15 @@ data class DownloadItem(
     /**
      * Whether clearing the list may take this row, and its file, away.
      *
-     * Not the same question as [isActive]: a transfer that is paused, failed or waiting for a permission
-     * is not busy, but the bytes it holds are still the point of it. The two states here are the ones
-     * where the row has done its job — the app is on the device, or the user gave up — and a row waiting
-     * on an uninstall is the clearest case of a finished-looking entry that is nothing of the sort.
+     * "Finished" is the transfer being over, not the app being openable: a verified build waiting for
+     * the installer has done everything the queue was asked to do, and leaving it behind made Clear
+     * finished a button that did nothing on a queue full of ready rows. Paused, failed and
+     * permission-blocked rows still own incomplete bytes and the way back to them. An install the
+     * user has already answered — AWAITING_CONFIRMATION or INSTALLING — is in flight, not finished.
      */
     val isDisposable: Boolean
-        get() = state == DownloadState.INSTALLED || state == DownloadState.CANCELED
+        get() = state == DownloadState.READY || state == DownloadState.INSTALLED ||
+            state == DownloadState.CANCELED
 
     /**
      * When this row last went to the installer, or 0 when it never did.
@@ -1126,22 +1128,53 @@ object DownloadEngine {
     }
 
     /**
+     * Removes several rows in one pass, with their cached files.
+     *
+     * The bulk door behind the Downloads page's selection mode. It is [remove] applied to a set, done
+     * once: one persist and one notification for the whole batch rather than a write per row, and the
+     * rows leave together instead of the list ticking shorter under the finger.
+     */
+    fun removeAll(context: Context, ids: Collection<String>) {
+        if (ids.isEmpty()) return
+        val doomed = ids.toSet()
+        doomed.forEach { id ->
+            newEpoch(id)
+            calls.remove(id)?.cancel()
+            jobs.remove(id)?.cancel()
+            unwatch(id)
+            rates.remove(id)
+            _items.value.firstOrNull { it.id == id }?.let(::purgeFiles)
+        }
+        _items.update { list -> list.filterNot { it.id in doomed } }
+        persist()
+        notifyAggregate(context)
+        pruneIfIdle(context)
+    }
+
+    /**
      * Drops the rows whose story is over and deletes their cached files, so clearing the list frees space.
      *
-     * [DownloadItem.isDisposable] is the gate, and it is a narrower one than "not downloading": a verified
-     * build the user has not installed, a transfer they paused, and a row held behind an uninstall all
-     * still own the only copy of something they asked for. Wiping those on a tap is not tidying up.
+     * [DownloadItem.isDisposable] is the gate: a verified build waiting for the installer, an installed
+     * app, or a transfer the user canceled. A paused or failed transfer is left alone because its bytes
+     * are incomplete. Returns how many rows went, so the caller can say what the tap did.
      */
-    fun clearFinished(context: Context) {
-        _items.value.filter { it.isDisposable }.forEach { item ->
+    fun clearFinished(context: Context): Int {
+        val doomed = _items.value.filter { it.isDisposable }
+        if (doomed.isEmpty()) return 0
+        doomed.forEach { item ->
+            newEpoch(item.id)
+            calls.remove(item.id)?.cancel()
+            jobs.remove(item.id)?.cancel()
             unwatch(item.id)
             rates.remove(item.id)
             purgeFiles(item)
         }
-        _items.update { list -> list.filterNot { it.isDisposable } }
+        val gone = doomed.mapTo(HashSet()) { it.id }
+        _items.update { list -> list.filterNot { it.id in gone } }
         persist()
         notifyAggregate(context)
         pruneIfIdle(context)
+        return doomed.size
     }
 
     fun toggle(context: Context, id: String) {

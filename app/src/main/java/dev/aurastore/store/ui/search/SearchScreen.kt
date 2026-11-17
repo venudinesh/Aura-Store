@@ -40,7 +40,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -52,7 +51,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.aurastore.store.R
-import coil3.compose.AsyncImage
 import dev.aurastore.store.data.Api
 import dev.aurastore.store.data.AppState
 import dev.aurastore.store.data.PostSummary
@@ -63,9 +61,8 @@ import dev.aurastore.store.data.sources.SourceApp
 import dev.aurastore.store.data.sources.SourceId
 import dev.aurastore.store.data.sources.SourceHub
 import dev.aurastore.store.data.sources.Sources
-import dev.aurastore.store.download.DownloadEngine
-import dev.aurastore.store.theme.ArtShape
 import dev.aurastore.store.ui.AppRow
+import dev.aurastore.store.ui.ArtImage
 import dev.aurastore.store.ui.LocalNavBarInset
 import dev.aurastore.store.ui.Glyph
 import dev.aurastore.store.ui.GlyphIcon
@@ -284,13 +281,15 @@ fun SearchScreen(
     onOpenPost: (Long) -> Unit,
     /** Opens the source picker with this source selected and the current query carried over. */
     onOpenSource: (SourceId, String) -> Unit,
+    /** Opens one source app's own page: description, screenshots and files. */
+    onOpenSourceApp: (SourceApp) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SearchViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val installs by AppState.installs.collectAsStateWithLifecycle()
-    val downloads by DownloadEngine.items.collectAsStateWithLifecycle()
     val enabledSources by Settings.sources.collectAsStateWithLifecycle()
+    val searchKeyboard by Settings.searchKeyboard.collectAsStateWithLifecycle()
     val otherSources = Sources.enabled(enabledSources).filter { it.id != SourceId.LITEAPKS }
     val actions = rememberStoreActions()
     val focusRequester = remember { FocusRequester() }
@@ -311,8 +310,10 @@ fun SearchScreen(
 
     // Play focuses the field *and* raises the keyboard when you land on the Search tab. Focus alone
     // was not enough on this handset: the bar is a non-focusable popup, so the field could hold focus
-    // with no IME attached — the field looked ready and typing went nowhere.
-    androidx.compose.runtime.LaunchedEffect(Unit) {
+    // with no IME attached — the field looked ready and typing went nowhere. The preference turns
+    // the keys off for someone who came to read the last results; the field still focuses on a tap.
+    androidx.compose.runtime.LaunchedEffect(searchKeyboard) {
+        if (!searchKeyboard) return@LaunchedEffect
         runCatching { focusRequester.requestFocus() }
         keyboard?.show()
     }
@@ -514,7 +515,7 @@ fun SearchScreen(
                                 post = post,
                                 modifier = Modifier.playEnter(state.generation, position),
                                 onClick = { onOpenPost(post.id) },
-                                action = actions.actionFor(post, installs, downloads),
+                                action = actions.liveAction(post, installs),
                                 onAction = { actions.runPrimary(post, askForSource = false) },
                             )
                         }
@@ -528,7 +529,8 @@ fun SearchScreen(
                             SourceResultRow(
                                 app = app,
                                 modifier = Modifier.playEnter(state.generation, position),
-                                onPick = { actions.download(app) },
+                                onOpen = { onOpenSourceApp(app) },
+                                onDownload = { actions.download(app) },
                             )
                         }
                     }
@@ -604,7 +606,8 @@ fun SearchScreen(
                         SourceResultRow(
                             app = app,
                             modifier = Modifier.playEnter(state.generation, position),
-                            onPick = { actions.download(app) },
+                            onOpen = { onOpenSourceApp(app) },
+                            onDownload = { actions.download(app) },
                         )
                     }
                 }
@@ -623,7 +626,7 @@ fun SearchScreen(
                         post = post,
                         modifier = Modifier.playEnter(state.generation, position),
                         onClick = { onOpenPost(post.id) },
-                        action = actions.actionFor(post, installs, downloads),
+                        action = actions.liveAction(post, installs),
                         onAction = { actions.runPrimary(post) },
                     )
                 }
@@ -722,30 +725,27 @@ private fun EndRow(query: String) {
 /**
  * One app from another catalogue, in the search results.
  *
- * The tab carries the source's name, so the row carries the app and nothing else.
+ * The tab carries the source's name, so the row carries the app and nothing else. The row opens the
+ * app's own page, where its description and screenshots live; the button beside it still queues the
+ * download in one tap.
  */
 @Composable
 private fun SourceResultRow(
     app: SourceApp,
+    onOpen: () -> Unit,
+    onDownload: () -> Unit,
     modifier: Modifier = Modifier,
-    onPick: () -> Unit,
 ) {
     Row(
-        modifier.fillMaxWidth().playClickable(onClick = onPick)
+        modifier.fillMaxWidth().playClickable(onClick = onOpen)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier.size(52.dp).clip(ArtShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-        ) {
-            AsyncImage(
-                model = app.iconUrl,
-                contentDescription = app.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
+        ArtImage(
+            url = app.iconUrl,
+            title = app.title,
+            modifier = Modifier.size(52.dp),
+        )
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(
@@ -766,7 +766,7 @@ private fun SourceResultRow(
             }
         }
         Spacer(Modifier.width(8.dp))
-        TextButton(onClick = onPick) {
+        TextButton(onClick = onDownload) {
             Text(stringResource(R.string.action_download))
         }
     }

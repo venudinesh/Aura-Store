@@ -107,4 +107,19 @@ object InstalledApps {
     fun installedLabel(context: Context, packageName: String): String? =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString("label:$packageName", null)
+
+    /**
+     * Every package this store has installed, whether or not it is still on the phone.
+     *
+     * The profile's screen-time tab filters this against the package manager, so a remembered app that
+     * was uninstalled is a name with no row rather than a crash. The record is the one written when an
+     * install landed; the queue can be cleared without losing the fact that the app came from here.
+     */
+    fun storePackages(context: Context): List<String> =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).all.asSequence()
+            .filter { (key, value) -> key.startsWith("post:") && value is Long && value > 0L }
+            .map { (key, _) -> key.removePrefix("post:") }
+            .filter { packageName -> packageName.isNotBlank() }
+            .distinct()
+            .toList()
 }

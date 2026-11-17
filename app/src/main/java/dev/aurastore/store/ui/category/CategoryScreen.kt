@@ -43,7 +43,6 @@ import dev.aurastore.store.data.Category
 import dev.aurastore.store.data.ListPager
 import dev.aurastore.store.data.Module
 import dev.aurastore.store.data.PostSummary
-import dev.aurastore.store.download.DownloadEngine
 import dev.aurastore.store.ui.AppRow
 import dev.aurastore.store.ui.LocalNavBarInset
 import dev.aurastore.store.ui.Glyph
@@ -329,7 +328,6 @@ fun CategoryScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val installs by AppState.installs.collectAsStateWithLifecycle()
-    val downloads by DownloadEngine.items.collectAsStateWithLifecycle()
     val actions = rememberStoreActions()
     val listState = rememberLazyListState()
 
@@ -475,7 +473,7 @@ fun CategoryScreen(
                     post = post,
                     onClick = { onOpenPost(post.id) },
                     modifier = Modifier.playEnter(state.generation, position),
-                    action = actions.actionFor(post, installs, downloads),
+                    action = actions.liveAction(post, installs),
                     onAction = { actions.runPrimary(post) },
                 )
             }

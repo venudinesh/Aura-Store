@@ -59,6 +59,14 @@ data class SourceRequest(
     val title: String,
     /** The catalogue post, when the request came from an app page. */
     val cataloguePostId: Long? = null,
+    /**
+     * The art the catalogue already holds for this title.
+     *
+     * A source's own search row does not always carry an image. The queue keeps the icon so the
+     * brand-bar button and the download panel can show the app being fetched, not just a generic
+     * arrow; when a match has no image of its own this is the one it borrows.
+     */
+    val iconUrl: String? = null,
     /** The source the sheet opens on: the user's default, or the catalogue. */
     val preferred: SourceId? = null,
     /**
@@ -125,6 +133,7 @@ fun SourcePickerSheet(onDismiss: () -> Unit) {
                 source = SourceId.LITEAPKS,
                 key = current.cataloguePostId.toString(),
                 title = current.title,
+                iconUrl = current.iconUrl,
                 cataloguePostId = current.cataloguePostId,
             )
         }
@@ -165,7 +174,12 @@ fun SourcePickerSheet(onDismiss: () -> Unit) {
             return@LaunchedEffect
         }
         val found = SourceHub.find(current.title, enabled)
-        matches = found.associate { match -> match.source to SourceMatchRow(match.app) }
+        matches = found.associate { match ->
+            // A site's answer often comes without art. The catalogue's own picture is the same app,
+            // so it fills the gap rather than leaving the sheet and the queue with a blank row.
+            val app = if (match.app.iconUrl == null) match.app.copy(iconUrl = current.iconUrl) else match.app
+            match.source to SourceMatchRow(app)
+        }
         searching = false
         // The sheet opens on the source the user named in Settings, or on the store's own catalogue.
         val preferred = current.preferred ?: SourceId.LITEAPKS

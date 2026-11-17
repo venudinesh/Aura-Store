@@ -34,6 +34,23 @@ class NavOrderTest {
     }
 
     @Test
+    fun aSixTabOrderLosesWishlistAndKeepsYou() {
+        // Wishlist was screen 4 and You was screen 5. The old strip is a full permutation of 0..5, so
+        // 5 marks it; the gap Wishlist leaves is closed and You keeps the screen number it had before
+        // Wishlist ever existed.
+        assertEquals(listOf(0, 1, 2, 3, 4), NavOrder.sanitize("0,1,2,3,4,5"))
+        assertEquals(listOf(3, 0, 4, 1, 2), NavOrder.sanitize("3,0,5,4,1,2"))
+        assertEquals(listOf(4, 3, 0, 1, 2), NavOrder.sanitize("5,3,4,0,1,2"))
+    }
+
+    @Test
+    fun aFiveTabOrderFromBeforeWishlistPassesThrough() {
+        // The build before Wishlist used screens 0..4 with You at 4, which is exactly this build's
+        // order. Reading it must not move a tab that was already in the right place.
+        assertEquals(listOf(3, 0, 4, 1, 2), NavOrder.sanitize("3,0,4,1,2"))
+    }
+
+    @Test
     fun anEmptyStoredOrderCannotHideATab() {
         val repaired = NavOrder.sanitize(listOf<Int>())
         assertEquals(NavOrder.COUNT, repaired.size)

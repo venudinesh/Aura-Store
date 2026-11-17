@@ -2,11 +2,9 @@ package dev.aurastore.store.ui
 
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -16,6 +14,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +33,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.LinearProgressIndicator
@@ -44,6 +44,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -135,24 +136,10 @@ fun PlayChip(
         border = BorderStroke(1.dp, outline),
     ) {
         Row(
-            Modifier
-                .padding(horizontal = 14.dp, vertical = 7.dp)
-                // The check is part of the chip's width, so removing it must not step the pill narrower
-                // in one frame. The size settles while the fill and the ink cross-fade, which is what
-                // makes selecting a filter read as one control changing rather than two.
-                .animateContentSize(PlayMotion.spec(PlayMotion.MEDIUM, EmphasizedDecelerateEasing)),
+            Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            AnimatedVisibility(
-                visible = selected,
-                enter = fadeIn(PlayMotion.spec(PlayMotion.SHORT, EmphasizedEasing)) +
-                    scaleIn(PlayMotion.spec(PlayMotion.MEDIUM, EmphasizedDecelerateEasing), 0.4f),
-                exit = fadeOut(PlayMotion.spec(PlayMotion.SHORT, StandardAccelerateEasing)) +
-                    scaleOut(PlayMotion.spec(PlayMotion.SHORT, EmphasizedAccelerateEasing), 0.4f),
-            ) {
-                GlyphIcon(Glyph.Check, size = 16.dp, tint = content)
-            }
             Text(label, style = MaterialTheme.typography.labelLarge, color = content, maxLines = 1)
             if (count != null) {
                 Text(
@@ -519,20 +506,48 @@ fun HeroCard(
     }
 }
 
-/** Play's phone-screenshot card: 9:19.5, 12dp radius, hairline outline. */
+/**
+ * App artwork in a frame that never cuts it.
+ *
+ * The sites publish art at whatever shape they like: a 5play tile is square, an ApkVision card is
+ * often taller, and a few are wide banners. A fixed slot with [ContentScale.Fit] keeps every grid on
+ * the same rhythm without slicing anyone's picture; the slot's fill is the letterbox.
+ */
+@Composable
+fun ArtImage(url: String?, title: String?, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .clip(ArtShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        AsyncImage(
+            model = url,
+            contentDescription = title,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+/**
+ * Play's screenshot card: the height is the constant, the picture sets the width.
+ *
+ * Screenshots arrive in both orientations. A frame that changes shape for the landscape ones made one
+ * app's gallery read as two different galleries; a fixed frame with the picture fitted inside reads
+ * as a strip of empty boxes. Keeping the height and letting the width follow the art gives a mixed
+ * gallery one rhythm without cutting anything or padding it into a letterbox.
+ */
 @Composable
 fun ScreenshotCard(
     url: String,
     modifier: Modifier = Modifier,
-    width: Dp = 200.dp,
-    portrait: Boolean = true,
+    height: Dp = 320.dp,
 ) {
+    var aspect by remember(url) { mutableFloatStateOf(9f / 19.5f) }
     Box(
         modifier
-            .width(width)
-            // Phone screenshots get Play's tall card; a feature graphic used in their place keeps
-            // its own landscape shape instead of being cropped into a portrait slice.
-            .aspectRatio(if (portrait) 9f / 19.5f else 16f / 9f)
+            .height(height)
+            .aspectRatio(aspect)
             .clip(IconShape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, IconShape),
@@ -540,7 +555,15 @@ fun ScreenshotCard(
         AsyncImage(
             model = url,
             contentDescription = null,
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.Fit,
+            onSuccess = { success ->
+                val image = success.result.image
+                if (image.height > 0) {
+                    // The bar is a guard against a malformed header, not a crop: the picture is still
+                    // drawn whole inside whatever width survives.
+                    aspect = (image.width.toFloat() / image.height).coerceIn(0.4f, 2.4f)
+                }
+            },
             modifier = Modifier.fillMaxSize(),
         )
     }
@@ -549,22 +572,13 @@ fun ScreenshotCard(
 /** App icon with a placeholder fill, so an empty URL still reads as a card. */
 @Composable
 fun PostIcon(post: PostSummary, size: Dp, modifier: Modifier = Modifier) {
-    Box(
-        modifier
-            .size(size)
-            .clip(IconShape)
-            // Every row in the storefront draws its icon through here, so this one line is what makes
-            // the icon of the card you tapped fly into the header of the page it opens.
-            .sharedIcon(post.id)
-            .background(MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        AsyncImage(
-            model = post.imageUrl,
-            contentDescription = post.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
-    }
+    // Every row in the storefront draws its icon through here, so this one line is what makes
+    // the icon of the card you tapped fly into the header of the page it opens.
+    ArtImage(
+        url = post.imageUrl,
+        title = post.title,
+        modifier = modifier.size(size).sharedIcon(post.id),
+    )
 }
 
 // ------------------------------------------------------------------------------------ sections
@@ -645,8 +659,13 @@ fun InfoRow(
     title: String,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    onClick: (() -> Unit)? = null,
 ) {
-    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+    val base = modifier.fillMaxWidth()
+    Row(
+        if (onClick != null) base.clip(RoundedCornerShape(12.dp)).playClickable(onClick = onClick) else base,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
         GlyphIcon(glyph, size = 20.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
@@ -916,20 +935,37 @@ fun DownloadRow(
     onInfo: () -> Unit = {},
     onCopyLink: () -> Unit = {},
     onUninstallFirst: () -> Unit = {},
+    selecting: Boolean = false,
+    selected: Boolean = false,
+    onSelect: (() -> Unit)? = null,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     Column(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(56.dp).clip(IconShape).background(MaterialTheme.colorScheme.surfaceVariant),
-            ) {
-                AsyncImage(
-                    model = item.iconUrl,
-                    contentDescription = item.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .then(
+                    if (onSelect == null) {
+                        Modifier
+                    } else {
+                        // The row's own face is the target, not the buttons beside it: a long press
+                        // starts selection, and once started a tap adds or removes this row. The
+                        // action cluster is hidden in selection mode, so a tap can never install or
+                        // pause the wrong download while a batch is being picked.
+                        Modifier.combinedClickable(
+                            onClick = { if (selecting) onSelect() },
+                            onLongClick = onSelect,
+                            onLongClickLabel = stringResource(R.string.a11y_select_download, item.title),
+                        )
+                    },
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ArtImage(
+                url = item.iconUrl,
+                title = item.title,
+                modifier = Modifier.size(56.dp),
+            )
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(
@@ -986,103 +1022,113 @@ fun DownloadRow(
                 }
             }
             Spacer(Modifier.width(8.dp))
-            when (item.state) {
-                DownloadState.DOWNLOADING, DownloadState.QUEUED ->
-                    SmallCircleAction(Glyph.Pause, stringResource(R.string.a11y_pause), onToggle)
-                DownloadState.PAUSED, DownloadState.FAILED, DownloadState.CANCELED ->
-                    SmallCircleAction(Glyph.Play, stringResource(R.string.a11y_resume), onToggle)
-                DownloadState.READY, DownloadState.NEEDS_PERMISSION, DownloadState.AWAITING_CONFIRMATION ->
-                    // Re-opening the sheet is the only thing that can still move an awaiting row, so the
-                    // control stays a working Install rather than a dead spinner. Except for the one row
-                    // that cannot be installed at all yet: its next step is a removal, and the button that
-                    // opens the system's own uninstall sheet is the honest control to put there.
-                    InstallButton(
-                        RowAction(
-                            if (item.state == DownloadState.NEEDS_PERMISSION) ActionKind.PERMISSION
-                            else ActionKind.INSTALL,
-                            label = when {
-                                item.uninstallFirst -> stringResource(R.string.action_uninstall)
-                                item.dataFile -> stringResource(R.string.action_add_data)
-                                else -> null
-                            },
-                        ),
-                        onClick = if (item.uninstallFirst) onUninstallFirst else onInstall,
-                        compact = true,
-                    )
-                DownloadState.INSTALLED ->
-                    // A placed data row stays actionable: re-adding it is how a game whose data went
-                    // missing gets fixed without re-downloading a gigabyte.
-                    InstallButton(
-                        RowAction(
-                            if (item.dataFile) ActionKind.INSTALL else ActionKind.OPEN,
-                            label = if (item.dataFile) stringResource(R.string.action_open_again)
-                            else stringResource(R.string.action_open),
-                        ),
-                        onClick = if (item.dataFile) onInstall else onDetails,
-                        compact = true,
-                    )
-                else -> SmallCircleAction(Glyph.Close, stringResource(R.string.a11y_remove), onRemove)
-            }
-            // Fixed 44dp anchor: the install pill beside it must not steal the tap.
-            Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
-                SmallCircleAction(Glyph.More, stringResource(R.string.a11y_more)) { menuOpen = true }
-                DropdownMenu(
-                    expanded = menuOpen,
-                    onDismissRequest = { menuOpen = false },
-                    shape = RoundedCornerShape(20.dp),
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    modifier = Modifier
-                        .widthIn(min = 180.dp)
-                        .border(
-                            1.dp,
-                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                            RoundedCornerShape(20.dp),
+            if (selecting) {
+                // Selection mode owns the trailing edge: one control, one meaning. The install,
+                // pause and menu controls come back the moment selection ends.
+                Checkbox(
+                    checked = selected,
+                    onCheckedChange = null,
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                )
+            } else {
+                when (item.state) {
+                    DownloadState.DOWNLOADING, DownloadState.QUEUED ->
+                        SmallCircleAction(Glyph.Pause, stringResource(R.string.a11y_pause), onToggle)
+                    DownloadState.PAUSED, DownloadState.FAILED, DownloadState.CANCELED ->
+                        SmallCircleAction(Glyph.Play, stringResource(R.string.a11y_resume), onToggle)
+                    DownloadState.READY, DownloadState.NEEDS_PERMISSION, DownloadState.AWAITING_CONFIRMATION ->
+                        // Re-opening the sheet is the only thing that can still move an awaiting row, so the
+                        // control stays a working Install rather than a dead spinner. Except for the one row
+                        // that cannot be installed at all yet: its next step is a removal, and the button that
+                        // opens the system's own uninstall sheet is the honest control to put there.
+                        InstallButton(
+                            RowAction(
+                                if (item.state == DownloadState.NEEDS_PERMISSION) ActionKind.PERMISSION
+                                else ActionKind.INSTALL,
+                                label = when {
+                                    item.uninstallFirst -> stringResource(R.string.action_uninstall)
+                                    item.dataFile -> stringResource(R.string.action_add_data)
+                                    else -> null
+                                },
+                            ),
+                            onClick = if (item.uninstallFirst) onUninstallFirst else onInstall,
+                            compact = true,
                         )
-                        .padding(vertical = 6.dp, horizontal = 8.dp),
-                ) {
-                    DownloadMenuItemPill(
-                        icon = Glyph.Info,
-                        label = stringResource(R.string.row_menu_details),
-                        onClick = {
-                            menuOpen = false
-                            onInfo()
-                        },
-                    )
-                    DownloadMenuItemPill(
-                        icon = Glyph.Copy,
-                        label = stringResource(R.string.row_menu_copy_link),
-                        onClick = {
-                            menuOpen = false
-                            onCopyLink()
-                        },
-                    )
-                    if (item.sha256 != null) {
+                    DownloadState.INSTALLED ->
+                        // A placed data row stays actionable: re-adding it is how a game whose data went
+                        // missing gets fixed without re-downloading a gigabyte.
+                        InstallButton(
+                            RowAction(
+                                if (item.dataFile) ActionKind.INSTALL else ActionKind.OPEN,
+                                label = if (item.dataFile) stringResource(R.string.action_open_again)
+                                else stringResource(R.string.action_open),
+                            ),
+                            onClick = if (item.dataFile) onInstall else onDetails,
+                            compact = true,
+                        )
+                    else -> SmallCircleAction(Glyph.Close, stringResource(R.string.a11y_remove), onRemove)
+                }
+                // Fixed 44dp anchor: the install pill beside it must not steal the tap.
+                Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+                    SmallCircleAction(Glyph.More, stringResource(R.string.a11y_more)) { menuOpen = true }
+                    DropdownMenu(
+                        expanded = menuOpen,
+                        onDismissRequest = { menuOpen = false },
+                        shape = RoundedCornerShape(20.dp),
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        modifier = Modifier
+                            .widthIn(min = 180.dp)
+                            .border(
+                                1.dp,
+                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                RoundedCornerShape(20.dp),
+                            )
+                            .padding(vertical = 6.dp, horizontal = 8.dp),
+                    ) {
                         DownloadMenuItemPill(
-                            icon = Glyph.Download,
-                            label = stringResource(R.string.row_menu_save),
+                            icon = Glyph.Info,
+                            label = stringResource(R.string.row_menu_details),
                             onClick = {
                                 menuOpen = false
-                                onSave()
+                                onInfo()
+                            },
+                        )
+                        DownloadMenuItemPill(
+                            icon = Glyph.Copy,
+                            label = stringResource(R.string.row_menu_copy_link),
+                            onClick = {
+                                menuOpen = false
+                                onCopyLink()
+                            },
+                        )
+                        if (item.sha256 != null) {
+                            DownloadMenuItemPill(
+                                icon = Glyph.Download,
+                                label = stringResource(R.string.row_menu_save),
+                                onClick = {
+                                    menuOpen = false
+                                    onSave()
+                                },
+                            )
+                        }
+                        DownloadMenuItemPill(
+                            icon = Glyph.Close,
+                            label = stringResource(R.string.a11y_remove),
+                            onClick = {
+                                menuOpen = false
+                                onRemove()
+                            },
+                        )
+                        DownloadMenuItemPill(
+                            icon = Glyph.Trash,
+                            label = stringResource(R.string.row_menu_delete_device),
+                            isDestructive = true,
+                            onClick = {
+                                menuOpen = false
+                                onDelete()
                             },
                         )
                     }
-                    DownloadMenuItemPill(
-                        icon = Glyph.Close,
-                        label = stringResource(R.string.a11y_remove),
-                        onClick = {
-                            menuOpen = false
-                            onRemove()
-                        },
-                    )
-                    DownloadMenuItemPill(
-                        icon = Glyph.Trash,
-                        label = stringResource(R.string.row_menu_delete_device),
-                        isDestructive = true,
-                        onClick = {
-                            menuOpen = false
-                            onDelete()
-                        },
-                    )
                 }
             }
         }

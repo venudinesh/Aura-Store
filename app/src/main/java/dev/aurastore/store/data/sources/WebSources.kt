@@ -228,6 +228,37 @@ object NineModSource : Source {
     }
 
     /**
+     * The post's own page: its prose and the pictures it carries.
+     *
+     * 9MOD is WordPress, so the body is the theme's entry content and the pictures are whatever the
+     * post embeds. The site refuses this desktop with 403, so the parser asks for the shapes WordPress
+     * itself emits rather than for a theme class that cannot be checked live.
+     */
+    override suspend fun detail(app: SourceApp): SourceDetail {
+        val pageUrl = app.pageUrl ?: app.key
+        return parseDetail(Web.get(pageUrl), pageUrl)
+    }
+
+    /** Pure: the prose and galleries of a 9MOD post page. */
+    fun parseDetail(html: String, base: String): SourceDetail {
+        val body = proseAfter(html, "class=\"entry-content\"")
+            .ifBlank { proseAfter(html, "itemprop=\"description\"") }
+        val screenshots = (
+            galleryLinks(html, "gallery-item", base) +
+                imageUrlsIn(body).map { Web.absolute(base, it) } +
+                jsonLdScreenshots(html) +
+                tagsHaving(html, "meta", "itemprop", "screenshot")
+                    .mapNotNull { tagAttribute(it, "content") }
+                    .map { Web.absolute(base, it) }
+            )
+            .distinct()
+        return SourceDetail(
+            description = body.ifBlank { metaContent(html, "description") },
+            screenshots = screenshots,
+        )
+    }
+
+    /**
      * Pure: the artefacts a download page links directly.
      *
      * Each row is `<a href="https://gp4.9mod.com/…" class="android-item file-item">` around a
@@ -517,6 +548,28 @@ object FivePlaySource : Source {
         }
     }
 
+    /**
+     * The app's own page: the full *About* prose and the screenshot strip.
+     *
+     * The card only carries a one-line badge; the page has the long text under `#nx-desc` and the
+     * screenshots under the section the site labels `nx-h-shots`. The strip links the full-size file
+     * from each anchor and loads a medium copy in the `<img>`, so the href is what a viewer gets.
+     */
+    override suspend fun detail(app: SourceApp): SourceDetail {
+        val pageUrl = app.pageUrl ?: app.key
+        return parseDetail(Web.get(pageUrl), pageUrl)
+    }
+
+    /** Pure: a 5play app page's description and screenshots. */
+    fun parseDetail(html: String, base: String): SourceDetail {
+        val description = proseAfter(html, "id=\"nx-desc\"")
+            .ifBlank { proseAfter(html, "class=\"nx-apkmm__desc\"") }
+            .ifBlank { metaContent(html, "description") }
+        val shots = sectionHtml(html, "nx-h-shots")
+        val screenshots = galleryLinks(shots.ifBlank { html }, "highslide", base)
+        return SourceDetail(description = description, screenshots = screenshots)
+    }
+
     /** Pure: `(do=cdn url, label)` pairs inside the download box. */
     fun parseFileLinks(html: String, base: String): List<Pair<String, String>> =
         Regex("href=\"([^\"]*\\?do=cdn&(?:amp;)?id=\\d+)\"[^>]*>(.*?)</a>", RegexOption.DOT_MATCHES_ALL)
@@ -781,6 +834,28 @@ object GetModsApkSource : Source {
         }
     }
 
+    /**
+     * The app's own page: the long post content and its screenshot tray.
+     *
+     * The tray is an anchor per picture with `data-lightbox="app-screenshots"`; the href is the full
+     * image and the `<img>` beside it is a lazy placeholder, so the anchor is the one to follow.
+     */
+    override suspend fun detail(app: SourceApp): SourceDetail {
+        val pageUrl = app.pageUrl ?: app.key
+        return parseDetail(Web.get(pageUrl), pageUrl)
+    }
+
+    /** Pure: a GetModsAPK post's description and screenshots. */
+    fun parseDetail(html: String, base: String): SourceDetail {
+        val description = proseAfter(html, "class=\"post-content")
+            .ifBlank { metaContent(html, "description") }
+        val screenshots = tagsHaving(html, "a", "data-lightbox", "app-screenshots")
+            .mapNotNull { tagAttribute(it, "href") }
+            .map { Web.absolute(base, it) }
+            .distinct()
+        return SourceDetail(description = description, screenshots = screenshots)
+    }
+
     /** Pure: `(mirror url, label)` pairs on the download page. */
     fun parseMirrors(html: String): List<Pair<String, String>> =
         Regex("href=\"(https://getmodsapk\\.com/[^\"]+/download/\\d+)\"[^>]*>(.*?)</a>", RegexOption.DOT_MATCHES_ALL)
@@ -945,6 +1020,30 @@ object An1Source : Source {
         return parseDirectFiles(filePage, downloadPage).map { url ->
             SourceFile(label = url.substringAfterLast('/'), url = url)
         }
+    }
+
+    /**
+     * The app's own page: the spoiler prose and the screenshot strip.
+     *
+     * The text sits in `div.description`, which also holds the comment spoiler; the screenshots are
+     * the page's `meta[itemprop=screenshot]` entries, each naming the full-size file rather than the
+     * thumbnail the page draws.
+     */
+    override suspend fun detail(app: SourceApp): SourceDetail {
+        val pageUrl = app.pageUrl ?: app.key
+        return parseDetail(Web.get(pageUrl), pageUrl)
+    }
+
+    /** Pure: an AN1 app page's description and screenshots. */
+    fun parseDetail(html: String, base: String): SourceDetail {
+        val description = proseAfter(html, "class=\"description\"", "class=\"app_screens")
+            .ifBlank { proseAfter(html, "itemprop=\"description\"") }
+            .ifBlank { metaContent(html, "description") }
+        val screenshots = tagsHaving(html, "meta", "itemprop", "screenshot")
+            .mapNotNull { tagAttribute(it, "content") }
+            .map { Web.absolute(base, it) }
+            .distinct()
+        return SourceDetail(description = description, screenshots = screenshots)
     }
 
     /** Pure: direct files on the `/file_<id>-dw.html` page. */

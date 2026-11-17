@@ -3,19 +3,20 @@ package dev.aurastore.store.ui
 import kotlin.math.abs
 
 /**
- * The rule that decides whether a horizontal swipe on a tab turns the page.
+ * The rule that decides whether a horizontal swipe moves along a strip.
  *
- * Kept out of the Compose layer for the same reason [Screen.depth] and [moveOf] are: the decision is a
- * fraction and a velocity against the width of the phone, and a device is a slow place to check six
- * cases of it. The gesture owns the pixels; this owns the answer.
+ * Browse uses it for the server tabs: a left swipe shows the next site, a right swipe the previous
+ * one. Kept out of the Compose layer for the same reason [Screen.depth] and [moveOf] are: the decision
+ * is a fraction and a velocity against the width of the phone, and a device is a slow place to check
+ * six cases of it. The gesture owns the pixels; this owns the answer.
  */
-object TabSwipe {
+object SwipeStep {
     /**
-     * How far the page must travel before letting go turns it: 18 % of the width.
+     * How far the page must travel before letting go moves it: 18 % of the width.
      *
      * A fifth of the screen at 1080 px is 194 px, which is past the point where the finger's own
      * movement has clearly started a page turn rather than nudged a list. Lower would make a slightly
-     * diagonal scroll change tabs by accident.
+     * diagonal scroll change strips by accident.
      */
     const val COMMIT_FRACTION = 0.18f
 
@@ -28,11 +29,11 @@ object TabSwipe {
     const val FLICK_VELOCITY = 900f
 
     /**
-     * The tab to land on, or [tab] when the gesture does not commit.
+     * The step to land on, or [tab] when the gesture does not commit.
      *
-     * Dragging left (negative [dx]) asks for the tab to the right, because the page moves left, the way
-     * a pager's next page comes in from the right. The result is clamped to the strip, so a swipe
-     * outward at either end lands back on the tab already showing rather than past the edge.
+     * Dragging left (negative [dx]) asks for the step to the right, because the page moves left, the
+     * way a pager's next page comes in from the right. The result is clamped to the strip, so a swipe
+     * outward at either end lands back on the step already showing rather than past the edge.
      */
     fun target(tab: Int, lastIndex: Int, dx: Float, velocityX: Float, widthPx: Float): Int {
         if (widthPx <= 0f || lastIndex < 0) return tab

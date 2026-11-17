@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Android 12 and later paints this window itself before the activity is alive. The sheet is
+         flat paper there, no icon: the A is written by the composition that follows, and a system
+         icon would put a static copy of the letter on screen a beat before the nib arrives. -->
+    <style name="Theme.AuraStore" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorBackground">@color/store_background</item>
+        <item name="android:windowBackground">@color/store_background</item>
+        <item name="android:windowSplashScreenBackground">@color/store_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_blank</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
+    </style>
+</resources>

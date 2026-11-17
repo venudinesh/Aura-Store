@@ -3,9 +3,11 @@ package dev.aurastore.store.update
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.util.Log
+import dev.aurastore.store.data.AppBuild
 import dev.aurastore.store.data.AppRelease
 import dev.aurastore.store.data.AppReleases
 import dev.aurastore.store.data.Settings
+import dev.aurastore.store.install.ApkExport
 import dev.aurastore.store.install.Installer
 import dev.aurastore.store.version.AppVersion
 import kotlinx.coroutines.CoroutineScope
@@ -23,7 +25,7 @@ import java.io.IOException
 import java.security.MessageDigest
 
 /** Why an update did not reach the installer, in the one word the screen needs. */
-enum class AppUpdateFailure { NETWORK, NO_CHECKSUM, CHECKSUM, INSTALLER }
+enum class AppUpdateFailure { NETWORK, NO_CHECKSUM, CHECKSUM, INSTALLER, SIGNATURE }
 
 /**
  * The store's own update, from "not asked yet" to "the system installer is open".
@@ -37,12 +39,30 @@ sealed interface AppUpdateState {
     data object Checking : AppUpdateState
     data object UpToDate : AppUpdateState
     data class Available(val release: AppRelease) : AppUpdateState
-    data class Downloading(val release: AppRelease, val received: Long, val total: Long) : AppUpdateState {
+    data class Downloading(
+        val release: AppRelease,
+        val build: AppBuild,
+        val received: Long,
+        val total: Long,
+    ) : AppUpdateState {
         val progress: Float
             get() = if (total <= 0L) 0f else (received.toFloat() / total).coerceIn(0f, 1f)
     }
-    data class Installing(val release: AppRelease) : AppUpdateState
-    data class Failed(val release: AppRelease?, val failure: AppUpdateFailure) : AppUpdateState
+    data class Installing(val release: AppRelease, val build: AppBuild) : AppUpdateState
+    data class Failed(
+        val release: AppRelease?,
+        val failure: AppUpdateFailure,
+        val build: AppBuild? = null,
+    ) : AppUpdateState
+
+    /**
+     * A build that cannot replace this installation, written to the phone's Downloads folder.
+     *
+     * Android refuses an APK signed with another key over an installed package, so a debug build asked
+     * for from a release install is saved rather than silently dropped. [location] is the human path
+     * the file can be found at.
+     */
+    data class Saved(val release: AppRelease, val build: AppBuild, val location: String) : AppUpdateState
 }
 
 /** What this installation is, as the version row and the comparison both need it. */
@@ -148,7 +168,12 @@ object AppUpdater {
     /** Re-opens an offer the user put down, without asking GitHub again. */
     fun present(release: AppRelease) {
         val current = _state.value
-        if (current is AppUpdateState.Downloading || current is AppUpdateState.Installing) return
+        if (current is AppUpdateState.Downloading ||
+            current is AppUpdateState.Installing ||
+            current is AppUpdateState.Saved
+        ) {
+            return
+        }
         _state.value = AppUpdateState.Available(release)
     }
 
@@ -159,26 +184,42 @@ object AppUpdater {
         _state.value = AppUpdateState.Idle
     }
 
+    /** True when [build] carries the signature Android needs to replace this installation. */
+    fun canReplace(context: Context, build: AppBuild): Boolean = build.debug == isDebuggable(context)
+
     /**
-     * Streams [release] to the cache, hashes it as it arrives, and opens the installer when the hash
-     * matches. The file is deleted on every failure path, so a bad download cannot be installed by
-     * the next attempt.
+     * Streams [build] to the cache and either opens the installer or, when its signature cannot replace
+     * this installation, saves it to Downloads.
+     *
+     * [release] carries both builds; [build] defaults to the one this installation can take. The file
+     * is hashed as it arrives and deleted on every failure path, so a bad download cannot be installed
+     * by the next attempt.
      */
-    fun downloadAndInstall(context: Context, release: AppRelease) {
+    fun downloadAndInstall(
+        context: Context,
+        release: AppRelease,
+        build: AppBuild = release.installed,
+    ) {
         val app = context.applicationContext
         val current = _state.value
-        if (current is AppUpdateState.Downloading || current is AppUpdateState.Installing) return
-        if (release.sha256 == null) {
-            _state.value = AppUpdateState.Failed(release, AppUpdateFailure.NO_CHECKSUM)
+        if (current is AppUpdateState.Downloading ||
+            current is AppUpdateState.Installing ||
+            current is AppUpdateState.Saved
+        ) {
             return
         }
-        _state.value = AppUpdateState.Downloading(release, 0L, release.apkSize)
+        if (build.sha256 == null) {
+            _state.value = AppUpdateState.Failed(release, AppUpdateFailure.NO_CHECKSUM, build)
+            return
+        }
+        val saveOnly = !canReplace(app, build)
+        _state.value = AppUpdateState.Downloading(release, build, 0L, build.size)
         scope.launch {
-            val target = File(File(app.cacheDir, "apk").apply { mkdirs() }, "aurastore-${release.version.text}.apk")
+            val target = File(File(app.cacheDir, "apk").apply { mkdirs() }, build.name)
             val result = runCatching {
                 withContext(Dispatchers.IO) {
-                    fetch(release, target) { received, total ->
-                        _state.value = AppUpdateState.Downloading(release, received, total)
+                    fetch(build, target) { received, total ->
+                        _state.value = AppUpdateState.Downloading(release, build, received, total)
                     }
                 }
             }
@@ -189,13 +230,23 @@ object AppUpdater {
                 } else {
                     AppUpdateFailure.NETWORK
                 }
-                _state.value = AppUpdateState.Failed(release, failure)
+                _state.value = AppUpdateState.Failed(release, failure, build)
                 return@launch
             }
-            _state.value = AppUpdateState.Installing(release)
+            if (saveOnly) {
+                val location = withContext(Dispatchers.IO) { ApkExport.save(app, target, build.name) }
+                target.delete()
+                _state.value = if (location == null) {
+                    AppUpdateState.Failed(release, AppUpdateFailure.INSTALLER, build)
+                } else {
+                    AppUpdateState.Saved(release, build, location)
+                }
+                return@launch
+            }
+            _state.value = AppUpdateState.Installing(release, build)
             val outcome = withContext(Dispatchers.Main) { Installer.install(app, target) }
             if (outcome == Installer.Outcome.FAILED || outcome == Installer.Outcome.UNSUPPORTED) {
-                _state.value = AppUpdateState.Failed(release, AppUpdateFailure.INSTALLER)
+                _state.value = AppUpdateState.Failed(release, AppUpdateFailure.INSTALLER, build)
             } else {
                 Settings.markAppUpdatePrompted(app, release.version.text)
                 _state.value = AppUpdateState.Idle
@@ -203,10 +254,10 @@ object AppUpdater {
         }
     }
 
-    private fun fetch(release: AppRelease, target: File, onProgress: (Long, Long) -> Unit) {
-        val expected = release.sha256 ?: throw IOException("no published hash")
-        AppReleases.open(release.apkUrl).use { response ->
-            val total = response.body.contentLength().takeIf { it > 0L } ?: release.apkSize
+    private fun fetch(build: AppBuild, target: File, onProgress: (Long, Long) -> Unit) {
+        val expected = build.sha256 ?: throw IOException("no published hash")
+        AppReleases.open(build.url).use { response ->
+            val total = response.body.contentLength().takeIf { it > 0L } ?: build.size
             val digest = MessageDigest.getInstance("SHA-256")
             var received = 0L
             response.body.byteStream().use { input ->

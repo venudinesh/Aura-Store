@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.updateAndGet
+import kotlin.math.abs
 
 /**
  * Play's three auto-update choices, kept in the same wording.
@@ -23,6 +24,20 @@ enum class AutoUpdateMode(@StringRes val label: Int, @StringRes val description:
     OFF(R.string.auto_update_off, R.string.auto_update_off_note),
     WIFI(R.string.auto_update_wifi, R.string.auto_update_wifi_note),
     ANY(R.string.auto_update_any, R.string.auto_update_any_note),
+}
+
+/**
+ * Which published build of Aura Store an update should offer.
+ *
+ * [AUTO] follows the signature of the copy on the phone, which is the only build Android can replace
+ * it with. The two explicit choices exist because the release publishes a debug build beside the
+ * signed one and someone testing the store may want that file; a build whose signature does not match
+ * is saved instead of installed, because the platform refuses it either way.
+ */
+enum class UpdateBuild(@StringRes val label: Int, @StringRes val description: Int) {
+    AUTO(R.string.update_build_auto, R.string.update_build_auto_note),
+    RELEASE(R.string.update_build_release, R.string.update_build_release_note),
+    DEBUG(R.string.update_build_debug, R.string.update_build_debug_note),
 }
 
 /**
@@ -68,6 +83,68 @@ fun dynamicPaletteSupported(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_
  * move of the Colours row writes a preference and this answer is never consulted again.
  */
 fun firstRunPalette(): PaletteMode = if (dynamicPaletteSupported()) PaletteMode.WALLPAPER else PaletteMode.HOUSE
+
+/**
+ * How the floating download panel draws a transfer in progress.
+ *
+ * The panel is the one surface that sits over the page for the whole length of a download, so its
+ * meter is the app's only long-running animation. Twenty-four styles, one chosen at a time: the first
+ * twelve are the standard set, in the theme's colours, and the last twelve are the limited editions,
+ * each with its own light. The first remains the shipped wash, so an install that never chooses keeps
+ * the default it already had. Every style falls back to a still fill when the transfer is paused or
+ * finished, and to a single frame when the phone has motion turned off — the choice changes the look,
+ * never whether the state can be read.
+ */
+enum class DockAnimation(
+    @StringRes val label: Int,
+    @StringRes val description: Int,
+    /** True for the limited-edition group shown on its own card in the picker. */
+    val limited: Boolean = false,
+) {
+    WASH(R.string.dock_anim_wash, R.string.dock_anim_wash_note),
+    TIDE(R.string.dock_anim_tide, R.string.dock_anim_tide_note),
+    AURORA(R.string.dock_anim_aurora, R.string.dock_anim_aurora_note),
+    SCAN(R.string.dock_anim_scan, R.string.dock_anim_scan_note),
+    COMET(R.string.dock_anim_comet, R.string.dock_anim_comet_note),
+    GLOW(R.string.dock_anim_glow, R.string.dock_anim_glow_note),
+    RAIN(R.string.dock_anim_rain, R.string.dock_anim_rain_note),
+    BUBBLES(R.string.dock_anim_bubbles, R.string.dock_anim_bubbles_note),
+    NEON(R.string.dock_anim_neon, R.string.dock_anim_neon_note),
+    PULSE(R.string.dock_anim_pulse, R.string.dock_anim_pulse_note),
+    MATRIX(R.string.dock_anim_matrix, R.string.dock_anim_matrix_note),
+    CHASE(R.string.dock_anim_chase, R.string.dock_anim_chase_note),
+    KAMEHAMEHA(R.string.dock_anim_kamehameha, R.string.dock_anim_kamehameha_note, limited = true),
+    TSUNAMI(R.string.dock_anim_tsunami, R.string.dock_anim_tsunami_note, limited = true),
+    FIREBALL(R.string.dock_anim_fireball, R.string.dock_anim_fireball_note, limited = true),
+    BOULDER(R.string.dock_anim_boulder, R.string.dock_anim_boulder_note, limited = true),
+    BULLET(R.string.dock_anim_bullet, R.string.dock_anim_bullet_note, limited = true),
+    ARROW(R.string.dock_anim_arrow, R.string.dock_anim_arrow_note, limited = true),
+    LASER(R.string.dock_anim_laser, R.string.dock_anim_laser_note, limited = true),
+    THUNDER(R.string.dock_anim_thunder, R.string.dock_anim_thunder_note, limited = true),
+    COUNTING(R.string.dock_anim_counting, R.string.dock_anim_counting_note, limited = true),
+    FLASH(R.string.dock_anim_flash, R.string.dock_anim_flash_note, limited = true),
+    WHEEL(R.string.dock_anim_wheel, R.string.dock_anim_wheel_note, limited = true),
+    NOS(R.string.dock_anim_nos, R.string.dock_anim_nos_note, limited = true),
+}
+
+/**
+ * The animated wallpaper behind the store.
+ *
+ * The snow and the fireworks are borrowed in spirit from the open-source Telegram clients, where a
+ * chat can wear falling flakes or a burst of sparks over its background. The maths here is new and
+ * carried by the clock rather than by a flock of objects: every particle is a function of its index
+ * and the time, so a rotation redraws the same scene instead of restarting it and the picker's still
+ * tiles are the same renderer at a fixed moment.
+ *
+ * [NONE] is the shipped page: an install that never opens this setting keeps exactly the surface it
+ * had, and the backdrop itself is not composed at all.
+ */
+enum class BackgroundTheme(@StringRes val label: Int, @StringRes val description: Int) {
+    NONE(R.string.background_none, R.string.background_none_note),
+    SNOW(R.string.background_snow, R.string.background_snow_note),
+    FIREWORKS(R.string.background_fireworks, R.string.background_fireworks_note),
+    MOTION(R.string.background_motion, R.string.background_motion_note),
+}
 
 /**
  * Which of the reference's three glass engines draws the bar.
@@ -145,9 +222,35 @@ fun defaultGlassStyle(): GlassStyle = GlassStyle(
     refraction = 0f,
     depth = 0f,
     corner = 1f,
-    width = (1f - 0.6f) / 0.9f,
+    width = DEFAULT_GLASS_WIDTH,
     offset = 0f,
 )
+
+/**
+ * The shipped bar width, as the 0..1 position of the slider that draws it.
+ *
+ * 116 %, not 100 %: at the measured pill the five labels already sat at the ends, and the bar read
+ * narrower than the content it floats over. The extra sixth widens the pill without asking the page
+ * for room it does not have.
+ */
+const val DEFAULT_GLASS_WIDTH = (1.16f - 0.6f) / 0.9f
+
+/** The width the bar shipped at before [DEFAULT_GLASS_WIDTH]: 100 % of the content. */
+private const val LEGACY_GLASS_WIDTH = (1f - 0.6f) / 0.9f
+
+/**
+ * The width to keep, adopting the shipped 116 % for an install still sitting on the old 100 %.
+ *
+ * A width someone dragged is theirs and is never touched. A width identical to the previous default
+ * is indistinguishable from "never moved", so it moves once with the default; [migrated] records
+ * that it has, and a later choice of 100 % stays 100 %.
+ */
+internal fun adoptDefaultGlassWidth(stored: Float, migrated: Boolean): Float =
+    if (!migrated && abs(stored - LEGACY_GLASS_WIDTH) < 0.0001f) {
+        DEFAULT_GLASS_WIDTH
+    } else {
+        stored
+    }
 
 /**
  * The shipped material with the caller's shape choices kept.
@@ -180,6 +283,11 @@ object Settings {
     private const val KEY_LAST_SYNC = "last_sync"
     private const val KEY_SOURCES = "enabled_sources"
     private const val KEY_NOTIF_ASKED = "notifications_asked"
+    private const val KEY_TOUR_SEEN = "tour_seen"
+    private const val KEY_AVATAR = "profile_avatar"
+    private const val KEY_AVATAR_FRAME = "profile_avatar_frame"
+    private const val KEY_COVER_STYLE = "profile_cover_style"
+    private const val KEY_COVER_CUSTOM = "profile_cover_custom"
     private const val KEY_THEME_MODE = "theme_mode"
     private const val KEY_PALETTE = "palette"
     private const val KEY_PALETTE_SEED = "palette_seed"
@@ -195,6 +303,7 @@ object Settings {
     private const val KEY_GLASS_OFFSET = "glass_offset"
     private const val KEY_GLASS_VERSION = "glass_version"
     private const val KEY_GLASS_SHAPE = "glass_shape_version"
+    private const val KEY_GLASS_WIDTH_VERSION = "glass_width_version"
     private const val KEY_NAV_ORDER = "nav_order"
     private const val KEY_NAV_SLIDE = "nav_slide"
     private const val KEY_NAV_ICON_MOTION = "nav_icon_motion"
@@ -203,6 +312,11 @@ object Settings {
     private const val KEY_APP_AUTO_UPDATE = "app_auto_update"
     private const val KEY_APP_UPDATE_CHECKED = "app_update_checked_at"
     private const val KEY_APP_UPDATE_PROMPTED = "app_update_prompted"
+    private const val KEY_APP_UPDATE_BUILD = "app_update_build"
+    private const val KEY_SEARCH_KEYBOARD = "search_keyboard"
+    private const val KEY_DOCK_ANIMATION = "dock_animation"
+    private const val KEY_BACKGROUND_THEME = "background_theme"
+    private const val KEY_AMOLED = "amoled"
 
     private val _autoUpdate = MutableStateFlow(AutoUpdateMode.WIFI)
     val autoUpdate: StateFlow<AutoUpdateMode> = _autoUpdate.asStateFlow()
@@ -239,6 +353,44 @@ object Settings {
     private val _appUpdatePrompted = MutableStateFlow<String?>(null)
     val appUpdatePrompted: StateFlow<String?> = _appUpdatePrompted.asStateFlow()
 
+    /** Which published Aura Store build an update offers: this install's signature, or a named one. */
+    private val _appUpdateBuild = MutableStateFlow(UpdateBuild.AUTO)
+    val appUpdateBuild: StateFlow<UpdateBuild> = _appUpdateBuild.asStateFlow()
+
+    /**
+     * Whether landing on the Search tab raises the keyboard.
+     *
+     * On by default, which is what Play does and what makes the tab a field rather than a page. Off is
+     * for the people who open Search to read what the last term returned without the keys covering
+     * half of it; the field still takes focus and raises the keyboard when it is tapped.
+     */
+    private val _searchKeyboard = MutableStateFlow(true)
+    val searchKeyboard: StateFlow<Boolean> = _searchKeyboard.asStateFlow()
+
+    /**
+     * How the floating download panel draws progress. The shipped wash is the default, so an install
+     * that never opens this setting looks exactly as it did before the choice existed.
+     */
+    private val _dockAnimation = MutableStateFlow(DockAnimation.WASH)
+    val dockAnimation: StateFlow<DockAnimation> = _dockAnimation.asStateFlow()
+
+    /**
+     * The weather behind the store. [BackgroundTheme.NONE] by default, which is the page this app
+     * has always drawn; the choice is a whole-app change and is written the moment a tile is tapped.
+     */
+    private val _backgroundTheme = MutableStateFlow(BackgroundTheme.NONE)
+    val backgroundTheme: StateFlow<BackgroundTheme> = _backgroundTheme.asStateFlow()
+
+    /**
+     * Whether the store paints true black and wears its dark scheme.
+     *
+     * This is its own switch in Appearance, not a wallpaper: it sits alongside the theme because it
+     * changes how every page is painted, and it can be worn with any of the weather effects above.
+     * Off by default, so an install that never asks keeps the page it already has.
+     */
+    private val _amoled = MutableStateFlow(false)
+    val amoled: StateFlow<Boolean> = _amoled.asStateFlow()
+
     /**
      * Whether the system has already been asked for `POST_NOTIFICATIONS`. An unanswered dialog is not a
      * refusal, but a refusal is permanent until the user goes to Settings, and Android shows whichever
@@ -259,6 +411,29 @@ object Settings {
 
     private val _notificationsAsked = MutableStateFlow(false)
     val notificationsAsked: StateFlow<Boolean> = _notificationsAsked.asStateFlow()
+
+    /** Whether the first-open tour has been finished or skipped. */
+    private val _tourSeen = MutableStateFlow(false)
+    val tourSeen: StateFlow<Boolean> = _tourSeen.asStateFlow()
+
+    /**
+     * The profile picture: null for the Aura mark, `face:<id>` for a built-in game face, `custom`
+     * for the square the user cropped from their own gallery. The picture itself lives in files,
+     * not in preferences, so a large photo cannot bloat the settings store.
+     */
+    private val _avatar = MutableStateFlow<String?>(null)
+    val avatar: StateFlow<String?> = _avatar.asStateFlow()
+
+    /** The ring around [avatar], worn everywhere the picture is drawn. */
+    private val _avatarFrame = MutableStateFlow(AvatarFrame.NONE)
+    val avatarFrame: StateFlow<AvatarFrame> = _avatarFrame.asStateFlow()
+
+    /** The drawn cover, or the one the user cropped when [coverCustom] is true. */
+    private val _coverStyle = MutableStateFlow(CoverStyle.HOUSE)
+    val coverStyle: StateFlow<CoverStyle> = _coverStyle.asStateFlow()
+
+    private val _coverCustom = MutableStateFlow(false)
+    val coverCustom: StateFlow<Boolean> = _coverCustom.asStateFlow()
 
     private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
@@ -312,7 +487,25 @@ object Settings {
         _appAutoUpdate.value = prefs.getBoolean(KEY_APP_AUTO_UPDATE, true)
         _appUpdateCheckedAt.value = prefs.getLong(KEY_APP_UPDATE_CHECKED, 0L)
         _appUpdatePrompted.value = prefs.getString(KEY_APP_UPDATE_PROMPTED, null)?.takeIf { it.isNotBlank() }
+        _appUpdateBuild.value = runCatching {
+            UpdateBuild.valueOf(prefs.getString(KEY_APP_UPDATE_BUILD, null) ?: UpdateBuild.AUTO.name)
+        }.getOrDefault(UpdateBuild.AUTO)
+        _searchKeyboard.value = prefs.getBoolean(KEY_SEARCH_KEYBOARD, true)
+        _dockAnimation.value = runCatching {
+            DockAnimation.valueOf(prefs.getString(KEY_DOCK_ANIMATION, null) ?: DockAnimation.WASH.name)
+        }.getOrDefault(DockAnimation.WASH)
+        _backgroundTheme.value = runCatching {
+            BackgroundTheme.valueOf(
+                prefs.getString(KEY_BACKGROUND_THEME, null) ?: BackgroundTheme.NONE.name,
+            )
+        }.getOrDefault(BackgroundTheme.NONE)
+        _amoled.value = prefs.getBoolean(KEY_AMOLED, false)
         _notificationsAsked.value = prefs.getBoolean(KEY_NOTIF_ASKED, false)
+        _tourSeen.value = prefs.getBoolean(KEY_TOUR_SEEN, false)
+        _avatar.value = prefs.getString(KEY_AVATAR, null)?.takeIf { it.isNotBlank() }
+        _avatarFrame.value = AvatarFrame.from(prefs.getString(KEY_AVATAR_FRAME, null))
+        _coverStyle.value = CoverStyle.from(prefs.getString(KEY_COVER_STYLE, null))
+        _coverCustom.value = prefs.getBoolean(KEY_COVER_CUSTOM, false)
         _themeMode.value = runCatching {
             ThemeMode.valueOf(prefs.getString(KEY_THEME_MODE, null) ?: ThemeMode.SYSTEM.name)
         }.getOrDefault(ThemeMode.SYSTEM)
@@ -327,6 +520,24 @@ object Settings {
         val material = prefs.getInt(KEY_GLASS_VERSION, 0) >= GLASS_VERSION
         fun kept(key: String, fallback: Float) =
             if (material) prefs.getFloat(key, fallback) else fallback
+        // The bar's shipped width moved from 100 % to 116 %; an install still on the old default
+        // takes the new one once, while any width actually dragged is kept. The migration is
+        // versioned so choosing 100 % again later does not get rewritten on the next boot.
+        val widthMigrated = prefs.getInt(KEY_GLASS_WIDTH_VERSION, 0) >= 1
+        val width = if (material) {
+            adoptDefaultGlassWidth(prefs.getFloat(KEY_GLASS_WIDTH, d.width), widthMigrated)
+        } else {
+            d.width
+        }
+        // Only an install that already owns a material is migrated: before the current control set
+        // there is nothing to adopt, and stamping the version there would skip the move on the
+        // upgrade that actually introduces these values.
+        if (material && !widthMigrated) {
+            prefs.edit {
+                putFloat(KEY_GLASS_WIDTH, width)
+                putInt(KEY_GLASS_WIDTH_VERSION, 1)
+            }
+        }
         _glass.value = GlassStyle(
             floating = prefs.getBoolean(KEY_GLASS_FLOATING, d.floating),
             liquid = prefs.getBoolean(KEY_GLASS_LIQUID, d.liquid),
@@ -338,7 +549,7 @@ object Settings {
             refraction = kept(KEY_GLASS_REFRACTION, d.refraction),
             depth = kept(KEY_GLASS_DEPTH, d.depth),
             corner = kept(KEY_GLASS_CORNER, d.corner),
-            width = kept(KEY_GLASS_WIDTH, d.width),
+            width = width,
             offset = kept(KEY_GLASS_OFFSET, d.offset),
         )
         // The shape the bar shipped in until now was square and edge to edge, which read as an old
@@ -382,6 +593,63 @@ object Settings {
         }
     }
 
+    /** The tour is worth exactly one first open; both Skip and the last page land here. */
+    fun markTourSeen(context: Context) {
+        if (_tourSeen.value) return
+        _tourSeen.value = true
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putBoolean(KEY_TOUR_SEEN, true)
+        }
+    }
+
+    /**
+     * Puts the first-open tour back in front of the store.
+     *
+     * The flag is a plain boolean so replay is the same write as the first install: the activity is
+     * already watching it, and clearing it is enough for the tour to open over whatever is showing.
+     */
+    fun replayTour(context: Context) {
+        if (!_tourSeen.value) return
+        _tourSeen.value = false
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putBoolean(KEY_TOUR_SEEN, false)
+        }
+    }
+
+    /** Writes the chosen picture. Null puts the Aura mark back. */
+    fun setAvatar(context: Context, value: String?) {
+        _avatar.value = value
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            if (value == null) remove(KEY_AVATAR) else putString(KEY_AVATAR, value)
+        }
+    }
+
+    /** One frame around every copy of the picture. A pick on the profile is the whole action. */
+    fun setAvatarFrame(context: Context, frame: AvatarFrame) {
+        _avatarFrame.value = frame
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_AVATAR_FRAME, frame.id)
+        }
+    }
+
+    /** Chooses a drawn cover, and turns the photograph off without deleting its file. */
+    fun setCoverStyle(context: Context, style: CoverStyle) {
+        _coverStyle.value = style
+        _coverCustom.value = false
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_COVER_STYLE, style.id)
+            putBoolean(KEY_COVER_CUSTOM, false)
+        }
+    }
+
+    /** Wears the cropped photograph; the file has already been written by [CoverStore]. */
+    fun setCustomCover(context: Context) {
+        _coverCustom.value = true
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putBoolean(KEY_COVER_CUSTOM, true)
+        }
+    }
+
     fun setAppAutoUpdate(context: Context, enabled: Boolean) {
         _appAutoUpdate.value = enabled
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
@@ -404,6 +672,20 @@ object Settings {
         }
     }
 
+    fun setAppUpdateBuild(context: Context, build: UpdateBuild) {
+        _appUpdateBuild.value = build
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_APP_UPDATE_BUILD, build.name)
+        }
+    }
+
+    fun setSearchKeyboard(context: Context, on: Boolean) {
+        _searchKeyboard.value = on
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putBoolean(KEY_SEARCH_KEYBOARD, on)
+        }
+    }
+
     fun setSourceEnabled(context: Context, id: SourceId, enabled: Boolean) {
         val next = _sources.value.toMutableSet()
         if (enabled) next += id.name else next -= id.name
@@ -417,6 +699,30 @@ object Settings {
         _themeMode.value = mode
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
             putString(KEY_THEME_MODE, mode.name)
+        }
+    }
+
+    /** The chosen download-panel style. Written immediately: a pick on the page is the whole action. */
+    fun setDockAnimation(context: Context, animation: DockAnimation) {
+        _dockAnimation.value = animation
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_DOCK_ANIMATION, animation.name)
+        }
+    }
+
+    /** The wallpaper behind the store. One tap on the picker is the whole action. */
+    fun setBackgroundTheme(context: Context, theme: BackgroundTheme) {
+        _backgroundTheme.value = theme
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_BACKGROUND_THEME, theme.name)
+        }
+    }
+
+    /** True black and the dark scheme together; one switch in Appearance is the whole action. */
+    fun setAmoled(context: Context, on: Boolean) {
+        _amoled.value = on
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putBoolean(KEY_AMOLED, on)
         }
     }
 

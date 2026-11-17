@@ -135,6 +135,18 @@ object SourceHub {
     }
 
     /**
+     * One app's own page, read through the source that published it.
+     *
+     * A page that cannot be read is still a page: the file list is loaded beside the prose, so a
+     * site that refuses the description leaves the download offer standing rather than turning the
+     * whole screen into an error.
+     */
+    suspend fun detail(app: SourceApp): SourceDetail = withContext(Dispatchers.IO) {
+        val adapter = Sources.all.firstOrNull { it.id == app.source } ?: return@withContext SourceDetail()
+        runCatching { adapter.detail(app) }.getOrDefault(SourceDetail())
+    }
+
+    /**
      * Every enabled source's full answer to a term, asked at once.
      *
      * Each answer keeps all of its rows, so the search screen can show what a site actually has

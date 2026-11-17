@@ -31,6 +31,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import kotlinx.coroutines.flow.map
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,6 +58,7 @@ import dev.aurastore.store.theme.EmphasizedDecelerateEasing
 import dev.aurastore.store.theme.PlayMotion
 import dev.aurastore.store.theme.StandardAccelerateEasing
 import dev.aurastore.store.theme.StandardEasing
+import dev.aurastore.store.ui.ArtImage
 import dev.aurastore.store.ui.Glyph
 import dev.aurastore.store.ui.LocalNavBarInset
 import dev.aurastore.store.ui.GlyphIcon
@@ -85,8 +88,11 @@ fun DownloadDetailScreen(
     modifier: Modifier = Modifier,
 ) {
     val actions = rememberStoreActions()
-    val downloads by DownloadEngine.items.collectAsStateWithLifecycle()
-    val item = downloads.firstOrNull { it.id == downloadId }
+    // This row only: another file's progress tick has nothing to say on a page about this one.
+    val rows by remember(downloadId) {
+        DownloadEngine.items.map { list -> list.filter { it.id == downloadId } }
+    }.collectAsStateWithLifecycle(emptyList())
+    val item = rows.firstOrNull()
 
     LazyColumn(modifier, contentPadding = PaddingValues(bottom = 32.dp + LocalNavBarInset.current)) {
         item {
@@ -128,17 +134,11 @@ private fun Header(item: DownloadItem, onOpenPost: (Long) -> Unit) {
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier.size(64.dp).clip(ArtShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-        ) {
-            AsyncImage(
-                model = item.iconUrl,
-                contentDescription = item.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
+        ArtImage(
+            url = item.iconUrl,
+            title = item.title,
+            modifier = Modifier.size(64.dp),
+        )
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(

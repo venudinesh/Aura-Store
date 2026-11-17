@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -72,6 +73,7 @@ import dev.aurastore.store.data.InstalledApps
 import dev.aurastore.store.data.PostDetail
 import dev.aurastore.store.data.PostSummary
 import dev.aurastore.store.data.Settings
+import dev.aurastore.store.data.Wishlist
 import dev.aurastore.store.data.Version
 import dev.aurastore.store.download.DownloadEngine
 import dev.aurastore.store.download.DownloadItem
@@ -82,6 +84,7 @@ import dev.aurastore.store.install.PlayStore
 import dev.aurastore.store.install.QuickInstall
 import dev.aurastore.store.install.Updates
 import dev.aurastore.store.ui.ActionKind
+import dev.aurastore.store.ui.ArtImage
 import dev.aurastore.store.ui.LocalNavBarInset
 import dev.aurastore.store.ui.AppCard
 import dev.aurastore.store.ui.Glyph
@@ -119,6 +122,7 @@ import dev.aurastore.store.ui.stripHtml
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -198,7 +202,11 @@ fun DetailScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val installs by AppState.installs.collectAsStateWithLifecycle()
-    val downloads by DownloadEngine.items.collectAsStateWithLifecycle()
+    // This page's own row, not the queue. Filtered at the flow, so another app's progress tick does
+    // not recompose a page about this one four times a second.
+    val rows by remember(postId) {
+        DownloadEngine.items.map { list -> list.filter { it.postId == postId } }
+    }.collectAsStateWithLifecycle(emptyList())
     val actions = rememberStoreActions()
     var menuOpen by remember { mutableStateOf(false) }
     var versionPickerOpen by remember { mutableStateOf(false) }
@@ -213,13 +221,17 @@ fun DetailScreen(
     val linkLabel = stringResource(R.string.clipboard_link_label)
     val shareFallback = stringResource(R.string.share_app_fallback)
     val updateIgnored = stringResource(R.string.detail_update_ignored)
+    val wishes by Wishlist.entries.collectAsStateWithLifecycle()
+    val wished = wishes.any { it.key == Wishlist.postKey(postId) }
+    val wishAdded = stringResource(R.string.wishlist_added)
+    val wishRemoved = stringResource(R.string.wishlist_removed)
 
     LaunchedEffect(postId) { viewModel.load() }
 
     val detail = state.detail
     // The app's own row. A game's expansion file is queued beside it as a second row, and this page is
     // about the package.
-    val item = downloads.firstOrNull { it.postId == postId && !it.dataFile }
+    val item = rows.firstOrNull { !it.dataFile }
     val installRecord: InstallRecord? = installs[postId]
 
     // What the update entry needs: the package, the build this page offers, and what the device runs.
@@ -272,6 +284,75 @@ fun DetailScreen(
                     }
                 }
                 Spacer(Modifier.weight(1f))
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .playClickable(
+                            onClick = {
+                                val summary = detail?.summary
+                                val added = Wishlist.toggle(
+                                    context,
+                                    Wishlist.post(
+                                        postId = postId,
+                                        title = summary?.title ?: shareFallback,
+                                        iconUrl = summary?.imageUrl,
+                                        subtitle = summary?.publisher,
+                                        size = summary?.size,
+                                    ),
+                                )
+                                Toast.makeText(
+                                    context,
+                                    if (added) wishAdded else wishRemoved,
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            },
+                        ),
+                ) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        GlyphIcon(
+                            Glyph.Heart,
+                            size = 22.dp,
+                            filled = wished,
+                            tint = if (wished) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            label = stringResource(
+                                if (wished) R.string.a11y_wishlist_remove else R.string.a11y_wishlist_add,
+                            ),
+                        )
+                    }
+                }
+                Spacer(Modifier.width(4.dp))
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .playClickable(
+                            onClick = {
+                                Share.app(
+                                    context,
+                                    detail?.summary?.title ?: shareFallback,
+                                    postId,
+                                )
+                            },
+                        ),
+                ) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        GlyphIcon(
+                            Glyph.Share,
+                            size = 20.dp,
+                            label = stringResource(R.string.action_share),
+                        )
+                    }
+                }
+                Spacer(Modifier.width(4.dp))
                 Surface(
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.surface,
@@ -557,18 +638,34 @@ fun DetailScreen(
                 }
 
                 // ------------------------------------------------------------------- screenshots
-                val media = detail.gallery.ifEmpty { listOfNotNull(post.bannerUrl ?: post.imageUrl) }
-                val galleryIsScreenshots = detail.gallery.isNotEmpty()
-                if (media.isNotEmpty()) {
+                val gallery = detail.gallery
+                if (gallery.isNotEmpty()) {
                     item {
                         LazyRow(
                             contentPadding = PaddingValues(horizontal = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             modifier = Modifier.padding(top = 8.dp),
                         ) {
-                            items(media, key = { it }) { url ->
-                                ScreenshotCard(url, portrait = galleryIsScreenshots)
+                            items(gallery, key = { it }) { url ->
+                                ScreenshotCard(url)
                             }
+                        }
+                    }
+                } else {
+                    // No gallery: the feature graphic stands in, and a graphic is a banner. It gets
+                    // the whole width at its own shape rather than a screenshot card sized for a
+                    // phone, which would show a third of it and hide the rest behind a swipe.
+                    val banner = post.bannerUrl ?: post.imageUrl
+                    if (banner != null) {
+                        item {
+                            ArtImage(
+                                url = banner,
+                                title = post.title,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                                    .aspectRatio(16f / 9f),
+                            )
                         }
                     }
                 }

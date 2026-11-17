@@ -162,7 +162,11 @@ desktop.ini
 *.swn
 
 # ---------------------------------------------------------------- Documentation: the README is the
-# only document this repository ships. The rest of the writing lives with the working sessions.
+# only markdown file this repository tracks. Everything else is a note from a working session, and a
+# new one stays on the machine that wrote it. Tracked files are unaffected by this rule; it applies
+# to the files that are not in the repository yet.
+*.md
+!/README.md
 #
 # The four guides under /docs/ are the published part: how the project is put together, how a
 # change is made, how a release is built, and what the prose gate is. The session notes, the

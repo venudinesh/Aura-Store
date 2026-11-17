@@ -1,6 +1,8 @@
 package dev.aurastore.store.ui
 
+import dev.aurastore.store.data.sources.SourceApp
 import dev.aurastore.store.data.sources.SourceId
+import dev.aurastore.store.ui.settings.SettingsSection
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -24,8 +26,29 @@ class RouteTest {
             Route.Category(0L),
             Route.Category(482L),
             Route.Settings,
+            Route.SettingsGroup(SettingsSection.NAVIGATION),
+            Route.Downloads,
+            Route.Manage,
+            Route.Device,
+            Route.About,
+            Route.Wishlist,
             Route.Source(SourceId.LITEAPKS),
             Route.Source(SourceId.APKVISION, "action"),
+            Route.SourcePage(
+                SourceApp(
+                    source = SourceId.FIVEPLAY,
+                    key = "https://5play.org/en/2304-spotify-music.html",
+                    title = "Spotify",
+                    version = "v9.0.30",
+                    size = "42 MB",
+                    subtitle = "Music & Audio",
+                    iconUrl = "https://cdn.5play.org/icon.png",
+                    pageUrl = "https://5play.org/en/2304-spotify-music.html",
+                    cataloguePostId = 519765L,
+                ),
+            ),
+            // A row that has only what its card showed still has to come back a page, not nothing.
+            Route.SourcePage(SourceApp(source = SourceId.AN1, key = "https://an1.com/1-app.html", title = "App")),
         )
         routes.forEach { route ->
             assertEquals("round trip failed for $route", route, decodeRoute(encodeRoute(route)))
@@ -59,6 +82,8 @@ class RouteTest {
         assertNull(decodeRoute("detail\u0001not-a-number"))
         assertNull(decodeRoute("source\u0001NOT_A_SOURCE"))
         assertNull(decodeRoute("download\u0001"))
+        assertNull(decodeRoute("settings-group\u0001NOT_A_SECTION"))
+        assertNull(decodeRoute("settings-group"))
     }
 
     @Test
@@ -80,6 +105,15 @@ class RouteTest {
         assertEquals(Screen.Detail(7L), Route.Detail(7L).toScreen())
         assertEquals(Screen.Category(0L), Route.Category(0L).toScreen())
         assertEquals(Screen.Settings, Route.Settings.toScreen())
+        assertEquals(
+            Screen.SettingsGroup(SettingsSection.NAVIGATION),
+            Route.SettingsGroup(SettingsSection.NAVIGATION).toScreen(),
+        )
+        assertEquals(Screen.Downloads, Route.Downloads.toScreen())
+        assertEquals(Screen.Manage, Route.Manage.toScreen())
+        assertEquals(Screen.Device, Route.Device.toScreen())
+        assertEquals(Screen.About, Route.About.toScreen())
+        assertEquals(Screen.Wishlist, Route.Wishlist.toScreen())
         assertEquals(Screen.Download("x"), Route.Download("x").toScreen())
         // The query belongs to the visit, not to the stack entry.
         assertEquals(
@@ -91,5 +125,7 @@ class RouteTest {
             Screen.Source(SourceId.APKVISION, "", "action"),
             Route.Source(SourceId.APKVISION, "action").toScreen(),
         )
+        val app = SourceApp(source = SourceId.NINEMOD, key = "https://9mod.com/spotify.html", title = "Spotify")
+        assertEquals(Screen.SourcePage(app), Route.SourcePage(app).toScreen())
     }
 }

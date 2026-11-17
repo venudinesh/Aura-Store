@@ -1,6 +1,8 @@
 package dev.aurastore.store.ui
 
+import dev.aurastore.store.data.sources.SourceApp
 import dev.aurastore.store.data.sources.SourceId
+import dev.aurastore.store.ui.settings.SettingsSection
 
 /**
  * The page the shell is showing.
@@ -19,6 +21,24 @@ sealed interface Screen {
 
     data object Settings : Screen
 
+    /** One category of the Settings hub, one level deeper than the hub itself. */
+    data class SettingsGroup(val section: SettingsSection) : Screen
+
+    /** The download queue, its own page rather than the tail of the You tab. */
+    data object Downloads : Screen
+
+    /** The updates the catalogue has for the apps on this phone. */
+    data object Manage : Screen
+
+    /** The apps installed on this phone. */
+    data object Device : Screen
+
+    /** What this client verifies after a download. */
+    data object About : Screen
+
+    /** Everything the heart saved, reached from the You tab. */
+    data object Wishlist : Screen
+
     /**
      * Another catalogue's page, opened from search or from the Browse tab.
      *
@@ -26,6 +46,9 @@ sealed interface Screen {
      * page because the page draws that term's apps rather than the source's newest ones.
      */
     data class Source(val source: SourceId, val query: String, val category: String? = null) : Screen
+
+    /** One app's own page inside a source, with the description and screenshots a row cannot carry. */
+    data class SourcePage(val app: SourceApp) : Screen
 
     /** One download row's own page. */
     data class Download(val id: String) : Screen
@@ -43,8 +66,9 @@ sealed interface Screen {
  */
 fun Screen.depth(): Int = when (this) {
     is Screen.Feed -> 0
-    is Screen.Category, Screen.Settings, is Screen.Source, is Screen.Download -> 1
-    is Screen.Detail -> 2
+    is Screen.Category, Screen.Settings, is Screen.Source, is Screen.Download,
+    Screen.Downloads, Screen.Manage, Screen.Device, Screen.About, Screen.Wishlist -> 1
+    is Screen.Detail, is Screen.SourcePage, is Screen.SettingsGroup -> 2
 }
 
 /** The direction a page transition runs in, or `STAY` when the same page simply re-renders. */

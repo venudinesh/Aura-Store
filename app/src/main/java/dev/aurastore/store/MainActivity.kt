@@ -18,15 +18,15 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.snap
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -48,7 +48,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
@@ -63,7 +62,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -73,15 +72,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -89,8 +87,11 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.aurastore.store.data.AppState
+import dev.aurastore.store.data.BackgroundTheme
 import dev.aurastore.store.data.NavOrder
 import dev.aurastore.store.data.Settings
+import dev.aurastore.store.data.ThemeMode
+import coil3.compose.AsyncImage
 import dev.aurastore.store.download.DownloadEngine
 import dev.aurastore.store.download.DownloadState
 import dev.aurastore.store.install.Installer
@@ -114,7 +115,6 @@ import dev.aurastore.store.ui.FloatingBarSurface
 import dev.aurastore.store.ui.Glyph
 import dev.aurastore.store.ui.LocalNavBarInset
 import dev.aurastore.store.ui.GlyphIcon
-import dev.aurastore.store.ui.InfoRow
 import dev.aurastore.store.ui.LocalRouteScope
 import dev.aurastore.store.ui.NAV_TABS
 import dev.aurastore.store.ui.LocalSharedScope
@@ -125,24 +125,38 @@ import dev.aurastore.store.ui.encodeRoute
 import dev.aurastore.store.ui.stacksOn
 import dev.aurastore.store.ui.toScreen
 import dev.aurastore.store.ui.Screen
-import dev.aurastore.store.ui.TabSwipe
 import dev.aurastore.store.ui.playClickable
 import dev.aurastore.store.ui.playScreenTransform
+import dev.aurastore.store.ui.about.AboutScreen
 import dev.aurastore.store.ui.category.CategoryScreen
 import dev.aurastore.store.ui.detail.DetailScreen
+import dev.aurastore.store.ui.device.DeviceScreen
+import dev.aurastore.store.ui.downloads.DownloadCatalogue
 import dev.aurastore.store.ui.downloads.DownloadDock
 import dev.aurastore.store.ui.downloads.DownloadDetailScreen
-import dev.aurastore.store.ui.downloads.dockCandidate
+import dev.aurastore.store.ui.downloads.DownloadsScreen
+import dev.aurastore.store.ui.downloads.dockCandidates
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import dev.aurastore.store.ui.feed.FeedKind
 import dev.aurastore.store.ui.feed.FeedScreen
+import dev.aurastore.store.ui.manage.ManageScreen
+import dev.aurastore.store.ui.profile.ProfilePicture
 import dev.aurastore.store.ui.search.SearchScreen
+import dev.aurastore.store.ui.source.SourceAppScreen
 import dev.aurastore.store.ui.source.SourceScreen
 import dev.aurastore.store.ui.source.SourcePicker
 import dev.aurastore.store.ui.source.SourcePickerSheet
 import dev.aurastore.store.ui.settings.AppUpdateBanner
 import dev.aurastore.store.ui.settings.AppUpdateDialog
+import dev.aurastore.store.ui.backdrop.LocalBackdropActive
+import dev.aurastore.store.ui.backdrop.TelegramBackdrop
 import dev.aurastore.store.ui.settings.SettingsScreen
+import dev.aurastore.store.ui.settings.SettingsSectionScreen
+import dev.aurastore.store.ui.splash.HelloSplash
+import dev.aurastore.store.ui.tour.AppTour
 import dev.aurastore.store.ui.you.YouScreen
+import dev.aurastore.store.ui.wishlist.WishlistScreen
 import dev.aurastore.store.update.AppUpdateState
 import dev.aurastore.store.update.AppUpdater
 
@@ -158,16 +172,24 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         // The starting window is the system's own paint, taken from the theme's night qualifier, which
         // is the phone's scheme. This is the same paint one step later, from the scheme the app chose.
+        // AMOLED is the one choice that must be black before the first Compose frame, because a
+        // near-black flash on the way to a true-black page is exactly what the mode avoids.
         // The colour is assigned rather than passed to the constructor because lint's UseKtx rule
         // suggests `Int.toDrawable`, which no version of androidx.core actually ships.
+        val amoled = Settings.amoled.value
         window.setBackgroundDrawable(
-            ColorDrawable().apply { color = (if (themeIsDark()) NightBase else Ink50).toArgb() },
+            ColorDrawable().apply {
+                color = (when {
+                    amoled -> Color.Black
+                    themeIsDark() -> NightBase
+                    else -> Ink50
+                }).toArgb()
+            },
         )
 
         notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
         DownloadEngine.ensureChannel(this)
         AppState.refresh(this)
-        askNotificationPermission()
         deepLink.value = intent?.getStringExtra(EXTRA_DOWNLOAD)
 
         setContent {
@@ -176,7 +198,25 @@ class MainActivity : ComponentActivity() {
             val themeMode by Settings.themeMode.collectAsState()
             val palette by Settings.palette.collectAsState()
             val seed by Settings.paletteSeed.collectAsState()
-            val dark = themeMode.resolvesToDark(isSystemInDarkTheme())
+            val tourSeen by Settings.tourSeen.collectAsState()
+            val backgroundTheme by Settings.backgroundTheme.collectAsState()
+            val amoled by Settings.amoled.collectAsState()
+            // AMOLED forces the dark scheme: white pages over a black surface would keep their own
+            // light cards but lose every word that sits straight on the page.
+            val dark = amoled || themeMode.resolvesToDark(isSystemInDarkTheme())
+            // The splash is the activity's own first frame, so a rotation mid-write takes the store
+            // straight through instead of replaying the nib; the tour, once open, survives rotation.
+            var splashDone by rememberSaveable { mutableStateOf(savedInstanceState != null) }
+            var tourOpen by rememberSaveable { mutableStateOf(false) }
+            LaunchedEffect(splashDone, tourSeen) {
+                if (splashDone && !tourSeen) {
+                    tourOpen = true
+                } else if (splashDone) {
+                    // One ask per install, and never while the first-open tour is on screen: a
+                    // system dialog on top of page one hides the very thing it is introducing.
+                    askNotificationPermission()
+                }
+            }
             // The bars sit over our own surface, so their icons follow the scheme the app resolved to.
             // enableEdgeToEdge()'s default follows the phone instead, which leaves dark icons on a dark
             // bar as soon as anyone picks Dark while the system is light.
@@ -186,16 +226,63 @@ class MainActivity : ComponentActivity() {
                     navigationBarStyle = systemBarsFor(dark),
                 )
             }
-            AuraStoreTheme(themeMode = themeMode, palette = palette, seed = seed) {
-                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    StoreApp(deepLink)
+            AuraStoreTheme(
+                themeMode = if (amoled) ThemeMode.DARK else themeMode,
+                palette = palette,
+                seed = seed,
+            ) {
+                // With weather on, or AMOLED, the shell must stop painting its own paper or the
+                // chosen surface is hidden under it. The flag travels in a composition local so
+                // every page that leaves its background bare agrees with the backdrop composed
+                // beside it.
+                val backdropActive = amoled || backgroundTheme != BackgroundTheme.NONE
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = if (backdropActive) Color.Transparent else MaterialTheme.colorScheme.background,
+                    contentColor = MaterialTheme.colorScheme.onBackground,
+                ) {
+                    CompositionLocalProvider(LocalBackdropActive provides backdropActive) {
+                        Box(Modifier.fillMaxSize()) {
+                            if (backdropActive) {
+                                TelegramBackdrop(
+                                    theme = backgroundTheme,
+                                    modifier = Modifier.matchParentSize(),
+                                    amoled = amoled,
+                                )
+                            }
+                            StoreApp(deepLink)
+                            // The tour sits between the store and the splash. When the splash fades it
+                            // reveals the first page instead of handing over to an empty feed for a beat.
+                            if (tourOpen && splashDone) {
+                                AppTour(
+                                    onDone = {
+                                        Settings.markTourSeen(this@MainActivity)
+                                        tourOpen = false
+                                    },
+                                    onSkip = {
+                                        Settings.markTourSeen(this@MainActivity)
+                                        tourOpen = false
+                                    },
+                                )
+                            }
+                            AnimatedVisibility(
+                                visible = !splashDone,
+                                exit = fadeOut(tween(420)),
+                                modifier = Modifier.fillMaxSize(),
+                            ) {
+                                HelloSplash(onDone = { splashDone = true })
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 
     /** The scheme this activity is about to draw, read while no composition exists yet. */
-    private fun themeIsDark() = Settings.themeMode.value.resolvesToDark(systemIsDark())
+    private fun themeIsDark(): Boolean =
+        Settings.amoled.value ||
+            Settings.themeMode.value.resolvesToDark(systemIsDark())
 
     /** Transparent scrims; only the icon colour is ours to choose, and it answers the surface below it. */
     private fun systemBarsFor(dark: Boolean) = if (dark) {
@@ -262,7 +349,8 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
             ?: (release.version.code > installedBuild.code)
         val dialogOpen = appUpdate is AppUpdateState.Available ||
             appUpdate is AppUpdateState.Downloading ||
-            appUpdate is AppUpdateState.Installing
+            appUpdate is AppUpdateState.Installing ||
+            appUpdate is AppUpdateState.Saved
         when {
             !newer -> null
             release.version.text == bannerHiddenVersion -> null
@@ -282,9 +370,7 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
     // The query the source screen was opened with. It belongs to the visit, not to the history, so it
     // is kept beside the stack rather than inside it.
     var sourceQuery by rememberSaveable { mutableStateOf("") }
-    var libraryRefresh by remember { mutableIntStateOf(0) }
     var profileOpen by remember { mutableStateOf(false) }
-    var aboutOpen by remember { mutableStateOf(false) }
 
     val routes = remember(stack) { stack.mapNotNull(::decodeRoute) }
     val top = routes.lastOrNull()
@@ -328,32 +414,67 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
     val orderedTabs = remember(navOrder) {
         navOrder.map { screen -> BarTab(NAV_TABS[screen].label, screen) }
     }
-    // Hidden on the source picker, which is a chooser that takes the whole screen. Settings shows the
-    // bar: it is where the four glass sliders live, and a visual control with no visible subject
-    // is not a preview. Every other pushed page hides it too: a detail or category page is a layer
-    // over a tab, and a floating bar sitting on top of its content read as clutter rather than as
-    // navigation. Back is that page's way out.
+    // Hidden on the source picker, which is a chooser that takes the whole screen. Settings and its
+    // category pages show the bar: the glass sliders live behind one of those doors, and a visual
+    // control with no visible subject is not a preview. Every other pushed page hides it too: a
+    // detail or category page is a layer over a tab, and a floating bar sitting on top of its content
+    // read as clutter rather than as navigation. Back is that page's way out.
     //
     // Also hidden while the keyboard is up. The bar is a window of its own now, and measured on the
     // handset that window sits *above* the keyboard rather than under it: the pill covered the keys'
     // bottom row and, being a window, took their taps. A bar that eats the space bar is worse than no
     // bar for the two seconds someone is typing.
-    val showNavBar = (stack.isEmpty() || top is Route.Settings) &&
+    val showNavBar = (stack.isEmpty() || top is Route.Settings || top is Route.SettingsGroup) &&
         top !is Route.Source && !WindowInsets.isImeVisible
     var catalogueRefresh by remember { mutableIntStateOf(0) }
     // Retapping the tab already showing scrolls its list up, the way Play's does.
     var scrollTop by remember { mutableIntStateOf(0) }
-    val downloads by DownloadEngine.items.collectAsStateWithLifecycle()
-    val activeDownloads = downloads.count { it.isActive }
-    // The one row the floating panel follows, and the row the user has closed it for. Hiding is per
-    // row rather than a switch: the next download the user starts is news and must reopen the panel,
-    // while the one they put away must stay away until it finishes.
-    var dockHiddenId by rememberSaveable { mutableStateOf<String?>(null) }
-    val dockItem = remember(downloads) { dockCandidate(downloads) }?.takeIf { it.id != dockHiddenId }
+    // The queue is read in narrow projections rather than as one list. A transfer publishes a
+    // progress tick about four times a second, and collecting the list here meant every tick recomposed
+    // the whole shell — brand bar, the page under it, the bar and the panel — which is exactly the
+    // frame the list is scrolling in. The badge needs a count and the face of the row it counts, the
+    // shell needs the id of the row the panel follows; the row's numbers are read by the button and
+    // the panel themselves.
+    val activeDownloads by remember {
+        DownloadEngine.items.map { rows -> rows.count { it.isActive } }.distinctUntilChanged()
+    }.collectAsStateWithLifecycle(0)
+    // The button wears the icon of the row it is counting. Only the URL travels: a progress tick
+    // rebuilds the row, and the shell must not see that. The URL changes when the first live row
+    // changes, which is once per download rather than four times a second.
+    val activeIcon by remember {
+        DownloadEngine.items
+            // The first live row with art, not simply the first live row: a site that published no
+            // image should not hide the face of the download queued behind it.
+            .map { rows -> rows.firstOrNull { it.isActive && it.iconUrl != null }?.iconUrl }
+            .distinctUntilChanged()
+    }.collectAsStateWithLifecycle(null)
+    // The rows the floating panel can show, in the order it flips through them. Only ids travel: the
+    // panel reads the row itself, so a progress tick repaints the card and stops rather than reaching
+    // the shell and the page behind it.
+    val dockIds by remember {
+        DownloadEngine.items
+            .map { rows -> dockCandidates(rows).map { it.id } }
+            .distinctUntilChanged()
+    }.collectAsStateWithLifecycle(emptyList())
+    // The row the user swiped to. Null means the first candidate, so a queue that changes under the
+    // selection falls back to what is now at the front instead of to a dead id.
+    var dockSelectedId by rememberSaveable { mutableStateOf<String?>(null) }
+    // Hiding is about the surface, not the row: a person who puts the card away wants it gone. The
+    // signature is the list's shape, so a row arriving or leaving is news and brings the panel back,
+    // while the progress ticks inside the same rows do not.
+    var dockHidden by rememberSaveable { mutableStateOf<String?>(null) }
+    val dockSignature = dockIds.joinToString("\u0000")
+    val dockId = if (dockHidden == dockSignature) {
+        null
+    } else {
+        dockIds.firstOrNull { it == dockSelectedId } ?: dockIds.firstOrNull()
+    }
     // The panel is a floating surface like the bar, and it is hidden by the same modals the bar is
     // hidden by: a dialog or the profile sheet owns the screen, and the keyboard sits under a child
-    // window. Stated once so the room a page reserves and the panel drawn in it cannot disagree.
-    val dockShown = dockItem != null && !profileOpen && !aboutOpen && !WindowInsets.isImeVisible
+    // window. It is also hidden on the queue page and on a download's own page: both already show the
+    // row it would repeat, and the panel's tap target would land on the page underneath.
+    val dockShown = dockId != null && top != Route.Downloads &&
+        top !is Route.Download && !profileOpen && !WindowInsets.isImeVisible
     // Measured rather than assumed: the panel grows with the phone's text size, and the room the lists
     // reserve under it has to grow by exactly the same amount.
     var dockHeightPx by remember { mutableIntStateOf(0) }
@@ -387,7 +508,6 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
         when {
             // A modal owns the screen; back closes it before it touches the page underneath.
             profileOpen -> profileOpen = false
-            aboutOpen -> aboutOpen = false
             // The confirmation is a modal too, and back is how it is dismissed.
             exitConfirm -> exitConfirm = false
             stack.isNotEmpty() -> pop()
@@ -409,6 +529,7 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
         }
     }
 
+    val backdropActive = LocalBackdropActive.current
     Scaffold(
         topBar = {
             // The brand bar belongs to the tabs. A pushed page carries its own top row, with the back
@@ -418,10 +539,8 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
                 if (stack.isEmpty()) {
                     BrandBar(
                         activeDownloads = activeDownloads,
-                        onDownloads = {
-                            visit(4)
-                            libraryRefresh++
-                        },
+                        activeIcon = activeIcon,
+                        onDownloads = { push(Route.Downloads) },
                         onProfile = { profileOpen = true },
                     )
                 }
@@ -440,6 +559,10 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
             // Empty on purpose: a bar in this slot pushes the list up off the glass. The bar lives in
             // the content area instead, so the page runs underneath it.
         },
+        // The wallpaper is painted behind this whole scaffold, so the scaffold itself has to be a
+        // hole rather than a sheet. With no backdrop chosen this is the same background it always was.
+        containerColor = if (backdropActive) Color.Transparent else MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground,
     ) { padding ->
         // One `SharedTransitionLayout` over one `AnimatedContent` is what lets an icon leave a row and
         // arrive in a header: the layout gives the routes a common coordinate space, and the animated
@@ -466,7 +589,12 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
             ),
         ) {
             val pageBg = MaterialTheme.colorScheme.background
-            val needsPageLayer = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            // Only the bar reads the page layer, and on a pushed page, behind a modal or under the
+            // keyboard no bar is drawn. Recording the page into an offscreen layer there was a whole
+            // extra full-screen pass on every frame — most of the cost of a detail page's entrance —
+            // for a sheet that was not on screen to sample it.
+            val needsPageLayer = showNavBar && !profileOpen &&
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
                 glassReadsBackdrop(liquid = glass.liquid, blur = glass.blur)
             val pageLayer = if (needsPageLayer) rememberGraphicsLayer() else null
             Box(Modifier.fillMaxSize().padding(padding)) {
@@ -486,93 +614,10 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
                     },
                 ) {
                 val shared = this
-                // Swiping between the five tabs. The page follows the finger, and either a fifth of
-                // the width or a flick commits the move; the shell's own slide then plays, so a
-                // swipe lands on the same transition a tap does rather than a second, different one.
-                // Horizontal scrollers inside a page — the featured carousel, the chip rails — are
-                // deeper in the tree and take the drag first, so this detector cancels over them.
-                // The drag is a plain float, not an `Animatable`: snapping an Animatable from every
-                // pointer event launched a coroutine per frame, so the page trailed the finger by a
-                // frame or two — the sticky part of the gesture. A float set synchronously tracks the
-                // finger exactly, and the same float is the target of the settle animation, which is
-                // the only part that has to be animated at all.
-                var swipeTarget by remember { mutableFloatStateOf(0f) }
-                var swiping by remember { mutableStateOf(false) }
-                val swipeX by animateFloatAsState(
-                    targetValue = swipeTarget,
-                    animationSpec = if (swiping) snap() else PlayMotion.spec(PlayMotion.MEDIUM),
-                    label = "tab-swipe",
-                )
-                // The content's own width, measured rather than read from the display: the screen is
-                // not the page in a split window, and lint is right to say so.
-                var pageWidth by remember { mutableFloatStateOf(0f) }
-                val screenWidth = pageWidth
-                // Only a tab is swipeable. A detail page, settings or the source picker is a route
-                // laid over the bar and leaves by its own back gesture.
-                val swipeable = screen is Screen.Feed && showNavBar && !profileOpen && !aboutOpen
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .onSizeChanged { pageWidth = it.width.toFloat() }
-                        .graphicsLayer { translationX = swipeX }
-                        .pointerInput(swipeable, tab, pageWidth) {
-                            if (!swipeable) return@pointerInput
-                            val tracker = VelocityTracker()
-                            var travelled = 0f
-                            detectHorizontalDragGestures(
-                                onDragStart = {
-                                    travelled = 0f
-                                    swipeTarget = 0f
-                                    swiping = true
-                                    tracker.resetTracking()
-                                },
-                                onDragCancel = {
-                                    swiping = false
-                                    swipeTarget = 0f
-                                },
-                                onDragEnd = {
-                                    val position = NavOrder.positionOf(navOrder, tab)
-                                    val target = TabSwipe.target(
-                                        tab = position,
-                                        lastIndex = navOrder.lastIndex,
-                                        dx = swipeTarget,
-                                        velocityX = tracker.calculateVelocity().x,
-                                        widthPx = screenWidth,
-                                    )
-                                    // The gesture speaks in positions on the strip; the shell opens
-                                    // screens. A reordered bar therefore swipes in its own order,
-                                    // which is the only order the user can see.
-                                    val next = navOrder.getOrElse(target) { tab }
-                                    if (next != tab) {
-                                        // Far enough to commit: hand the movement to the tab
-                                        // transition instead of springing back first, which was two
-                                        // animations for one gesture. `swiping` stays true, so the
-                                        // offset resets in this frame rather than animating home.
-                                        swipeTarget = 0f
-                                        visit(next)
-                                        if (next == 4) libraryRefresh++
-                                    } else {
-                                        swiping = false
-                                        swipeTarget = 0f
-                                    }
-                                },
-                                onHorizontalDrag = { change, amount ->
-                                    change.consume()
-                                    travelled += amount
-                                    // The ends resist instead of refusing: the page still moves a
-                                    // little under the finger, which is what says "this is the edge".
-                                    val position = NavOrder.positionOf(navOrder, tab)
-                                    val atEdge = (position == 0 && travelled > 0) ||
-                                        (position == navOrder.lastIndex && travelled < 0)
-                                    val step = amount * if (atEdge) 0.18f else 1f
-                                    swipeTarget = (swipeTarget + step).coerceIn(
-                                        -screenWidth * 0.4f,
-                                        screenWidth * 0.4f,
-                                    )
-                                },
-                            )
-                        },
-                ) {
+                // The page itself no longer swipes between tabs: that gesture belongs to the server
+                // strip inside Browse, where it changes the site being shown rather than the app tab
+                // under the finger. The shell keeps only taps for navigation.
+                Box(Modifier.fillMaxSize()) {
                 AnimatedContent(
                     targetState = screen,
                     modifier = Modifier.fillMaxSize(),
@@ -589,9 +634,15 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
                                 initialQuery = route.query,
                                 initialCategory = route.category,
                                 onBack = ::pop,
+                                onOpenApp = { app -> push(Route.SourcePage(app)) },
+                            )
+
+                            is Screen.SourcePage -> SourceAppScreen(
+                                app = route.app,
+                                onBack = ::pop,
                                 onOpenCataloguePost = { postId ->
-                                    // A source page is a place you were; the app you open from it goes on
-                                    // top. Back returns to the source search rather than past it.
+                                    // A source page is a place you were; the catalogue's own page
+                                    // for the same app goes on top of it.
                                     push(Route.Detail(postId))
                                 },
                             )
@@ -616,10 +667,47 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
 
                             Screen.Settings -> SettingsScreen(
                                 onBack = ::pop,
+                                onOpenSection = { section -> push(Route.SettingsGroup(section)) },
+                                onOpenAbout = { push(Route.About) },
+                            )
+
+                            is Screen.SettingsGroup -> SettingsSectionScreen(
+                                section = route.section,
+                                onBack = ::pop,
                                 onRefreshCatalogue = {
                                     catalogueRefresh++
                                     Settings.markSynced(context)
                                 },
+                            )
+
+                            Screen.Downloads -> DownloadsScreen(
+                                onBack = ::pop,
+                                onOpenPost = { push(Route.Detail(it)) },
+                                onOpenDownload = { push(Route.Download(it)) },
+                            )
+
+                            Screen.Manage -> ManageScreen(
+                                onBack = ::pop,
+                                onOpenPost = { push(Route.Detail(it)) },
+                            )
+
+                            Screen.Device -> DeviceScreen(onBack = ::pop)
+
+                            Screen.About -> AboutScreen(
+                                onBack = ::pop,
+                                onReplayTour = {
+                                    // The tour sits over the store, not over the page that asked for
+                                    // it: clearing the stack first means the last page hands over
+                                    // to the thing the first open showed, not to a settings list.
+                                    jumpTo(null)
+                                    Settings.replayTour(context)
+                                },
+                            )
+
+                            Screen.Wishlist -> WishlistScreen(
+                                onBack = ::pop,
+                                onOpenPost = { push(Route.Detail(it)) },
+                                onOpenSourceApp = { app -> push(Route.SourcePage(app)) },
                             )
 
                             is Screen.Feed -> when (route.index) {
@@ -643,20 +731,25 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
                                         sourceQuery = query
                                         push(Route.Source(id))
                                     },
+                                    onOpenSourceApp = { app -> push(Route.SourcePage(app)) },
                                 )
 
                                 3 -> FeedScreen(
                                     FeedKind.BROWSE,
                                     onOpenPost = { push(Route.Detail(it)) },
                                     onOpenCategory = { push(Route.Category(it)) },
+                                    onOpenSourceApp = { app -> push(Route.SourcePage(app)) },
                                     refreshKey = catalogueRefresh,
                                     scrollTopKey = scrollTop,
                                 )
 
                                 else -> YouScreen(
                                     onOpenPost = { push(Route.Detail(it)) },
-                                    onOpenDownload = { push(Route.Download(it)) },
-                                    refreshKey = libraryRefresh,
+                                    onOpenSourceApp = { app -> push(Route.SourcePage(app)) },
+                                    onOpenDevice = { push(Route.Device) },
+                                    onOpenDownloads = { push(Route.Downloads) },
+                                    onOpenSettings = { push(Route.Settings) },
+                                    onOpenAbout = { push(Route.About) },
                                     scrollTopKey = scrollTop,
                                 )
                             }
@@ -676,47 +769,37 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
                 // The panel is a child of this surface rather than a node beside it: the two used to
                 // be placed by separate arithmetic (a padding in the page, a window offset in the bar)
                 // and met at the seam. As a column child its gap is layout, so the two cannot overlap.
-                if (dockShown || (showNavBar && !profileOpen && !aboutOpen)) {
-                    val dock = dockItem
+                if (dockShown || (showNavBar && !profileOpen)) {
                     FloatingBarSurface(
                         style = glass,
                         tint = MaterialTheme.colorScheme.surfaceContainer,
                         pageLayer = pageLayer,
-                        barShown = showNavBar && !profileOpen && !aboutOpen,
+                        barShown = showNavBar && !profileOpen,
                         // Measured from the five labels at this phone's text size, so the sheet is a
                         // pill on every screen instead of a fraction of one.
                         pillWidth = rememberTabsPillWidth(orderedTabs),
                         dockShown = dockShown,
                         dock = { seam ->
-                            if (dock != null) {
-                                DownloadDock(
-                                    item = dock,
-                                    // Everything else the panel is not showing, so a second download
-                                    // never looks like it is not running.
-                                    more = downloads.count {
-                                        it.id != dock.id &&
-                                            (it.isActive || it.state == DownloadState.PAUSED ||
-                                                it.state == DownloadState.READY ||
-                                                it.state == DownloadState.NEEDS_PERMISSION ||
-                                                it.state == DownloadState.AWAITING_CONFIRMATION)
-                                    },
-                                    onOpen = { push(Route.Download(dock.id)) },
-                                    onToggle = { DownloadEngine.toggle(context, dock.id) },
-                                    onInstall = {
-                                        when {
-                                            dock.state == DownloadState.NEEDS_PERMISSION ->
-                                                Installer.openUnknownSourcesSettings(context)
-                                            dock.uninstallFirst ->
-                                                dock.apkPackage?.let { Installer.uninstall(context, it) }
-                                            else ->
-                                                DownloadEngine.install(context, dock.id)
+                            dockId?.let { id ->
+                                DownloadDockHost(
+                                    itemId = id,
+                                    seam = seam,
+                                    onOpen = { push(Route.Download(it)) },
+                                    onToggle = { DownloadEngine.toggle(context, it) },
+                                    // The step is applied against the strip the shell built, so the
+                                    // shell stays the one place that says what the next row is.
+                                    onStep = { step ->
+                                        val from = dockIds.indexOf(id)
+                                        if (from >= 0) {
+                                            dockSelectedId = dockIds[
+                                                (from + step).coerceIn(0, dockIds.lastIndex)
+                                            ]
                                         }
                                     },
-                                    onDismiss = { dockHiddenId = dock.id },
-                                    seam = seam,
-                                    // Measured here, in the window that draws it, and fed to the
-                                    // page as its reserve — the panel's height is the page's business.
-                                    modifier = Modifier.onSizeChanged { dockHeightPx = it.height },
+                                    onDismiss = { dockHidden = dockSignature },
+                                    // Measured in the window that draws it, and fed to the page as its
+                                    // reserve — the panel's height is the page's business.
+                                    onHeight = { dockHeightPx = it },
                                 )
                             }
                         },
@@ -746,7 +829,6 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
                                 val retapped = tab == screen && stack.isEmpty()
                                 stack = emptyList()
                                 visit(screen)
-                                if (screen == 4) libraryRefresh++
                                 if (retapped) scrollTop++
                             },
                         )
@@ -766,17 +848,19 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
             ProfileSheet(
                 onManageApps = {
                     profileOpen = false
-                    visit(4)
-                    libraryRefresh++
+                    push(Route.Manage)
+                },
+                onDeviceApps = {
+                    profileOpen = false
+                    push(Route.Device)
                 },
                 onDownloads = {
                     profileOpen = false
-                    visit(4)
-                    libraryRefresh++
+                    push(Route.Downloads)
                 },
                 onAbout = {
                     profileOpen = false
-                    aboutOpen = true
+                    push(Route.About)
                 },
                 onInstallSettings = {
                     profileOpen = false
@@ -790,16 +874,13 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
         }
     }
 
-    if (aboutOpen) {
-        AboutDialog(onDismiss = { aboutOpen = false })
-    }
-
     // A newer GitHub release is an offer, not a silent replacement: the download is hashed and the
     // system installer still asks. The dialog lives at the root so it can appear over any tab.
     val updateRelease = when (val update = appUpdate) {
         is AppUpdateState.Available -> update.release
         is AppUpdateState.Downloading -> update.release
         is AppUpdateState.Installing -> update.release
+        is AppUpdateState.Saved -> update.release
         is AppUpdateState.Failed -> update.release
         else -> null
     }
@@ -807,7 +888,7 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
         AppUpdateDialog(
             release = updateRelease,
             state = appUpdate,
-            onInstall = { AppUpdater.downloadAndInstall(context, updateRelease) },
+            onInstall = { build -> AppUpdater.downloadAndInstall(context, updateRelease, build) },
             onDismiss = { AppUpdater.dismiss() },
         )
     }
@@ -847,9 +928,12 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
 @Composable
 private fun BrandBar(
     activeDownloads: Int,
+    activeIcon: String?,
     onDownloads: () -> Unit,
     onProfile: () -> Unit,
 ) {
+    val avatar by Settings.avatar.collectAsStateWithLifecycle()
+    val frame by Settings.avatarFrame.collectAsStateWithLifecycle()
     Row(
         Modifier
             .fillMaxWidth()
@@ -873,27 +957,21 @@ private fun BrandBar(
             fontWeight = FontWeight.Medium,
             modifier = Modifier.weight(1f),
         )
-        BadgeButton(count = activeDownloads, onClick = onDownloads)
+        BadgeButton(count = activeDownloads, iconUrl = activeIcon, onClick = onDownloads)
         Spacer(Modifier.width(10.dp))
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier.size(36.dp).clip(CircleShape).playClickable(onClick = onProfile),
-        ) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                GlyphIcon(
-                    Glyph.Person,
-                    size = 20.dp,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    label = stringResource(R.string.a11y_account),
-                )
-            }
-        }
+        // The same picture, frame and live choice the profile wears, at the size a bar can hold.
+        ProfilePicture(
+            choice = avatar,
+            size = 36.dp,
+            frame = frame,
+            contentDescription = stringResource(R.string.a11y_account),
+            modifier = Modifier.clip(CircleShape).playClickable(onClick = onProfile),
+        )
     }
 }
 
 @Composable
-private fun BadgeButton(count: Int, onClick: () -> Unit) {
+private fun BadgeButton(count: Int, iconUrl: String?, onClick: () -> Unit) {
     Box(Modifier.size(40.dp)) {
         Surface(
             shape = CircleShape,
@@ -901,6 +979,9 @@ private fun BadgeButton(count: Int, onClick: () -> Unit) {
             modifier = Modifier.size(36.dp).align(Alignment.Center).clip(CircleShape).playClickable(onClick = onClick),
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                // The row being counted keeps its own face on the button: a generic arrow says a
+                // download is running somewhere, the app's icon says which one. The glyph stays
+                // underneath as the fallback for a row with no icon or an image that will not load.
                 GlyphIcon(
                     Glyph.Download,
                     size = 20.dp,
@@ -910,6 +991,14 @@ private fun BadgeButton(count: Int, onClick: () -> Unit) {
                     label = if (count > 0) pluralStringResource(R.plurals.a11y_downloads_count, count, count)
                     else stringResource(R.string.a11y_downloads),
                 )
+                if (iconUrl != null) {
+                    AsyncImage(
+                        model = iconUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
         }
         AnimatedVisibility(
@@ -975,49 +1064,104 @@ private fun TabIcon(glyph: Glyph, badge: Int = 0, fill: Float = 0f) {
     }
 }
 
+/**
+ * The floating download panel, with the row it shows read here rather than by the shell.
+ *
+ * The shell knows which row the panel follows and nothing else. A progress tick repaints this card
+ * and stops; the projection in [StoreApp] keeps the id stable for the length of the transfer, so the
+ * brand bar, the page and the navigation bar do not recompose four times a second while a file moves.
+ *
+ * The list itself is rebuilt here because the catalogue sheet needs the rows, not their ids. It is
+ * the same [dockCandidates] order the shell walked, so the position handed to the card and the step
+ * handed back speak about the same strip.
+ */
+@Composable
+private fun DownloadDockHost(
+    itemId: String,
+    seam: Boolean,
+    onOpen: (String) -> Unit,
+    onToggle: (String) -> Unit,
+    onStep: (Int) -> Unit,
+    onDismiss: () -> Unit,
+    onHeight: (Int) -> Unit,
+) {
+    val context = LocalContext.current
+    val downloads by DownloadEngine.items.collectAsStateWithLifecycle()
+    val candidates = remember(downloads) { dockCandidates(downloads) }
+    val item = candidates.firstOrNull { it.id == itemId } ?: return
+    val position = candidates.indexOfFirst { it.id == item.id }.coerceAtLeast(0)
+    var catalogueOpen by rememberSaveable { mutableStateOf(false) }
+    // Keyed on the row so the card's animated fraction starts at the new row's own progress instead
+    // of sweeping from the last one the panel showed.
+    key(item.id) {
+        Column(Modifier.fillMaxWidth()) {
+            AnimatedVisibility(
+                visible = catalogueOpen,
+                // The menu grows out of the card it belongs to and shrinks back into it. It is a
+                // surface of the same width, not a sheet: no scrim, no second window.
+                enter = fadeIn(PlayMotion.spec(PlayMotion.SHORT)) +
+                    expandVertically(expandFrom = Alignment.Bottom),
+                exit = fadeOut(PlayMotion.spec(PlayMotion.SHORT)) +
+                    shrinkVertically(shrinkTowards = Alignment.Bottom),
+            ) {
+                DownloadCatalogue(
+                    items = candidates,
+                    onOpen = { id ->
+                        catalogueOpen = false
+                        onOpen(id)
+                    },
+                    onDismiss = { catalogueOpen = false },
+                    modifier = Modifier.padding(bottom = FloatingBar.dockGap),
+                )
+            }
+            DownloadDock(
+                item = item,
+                position = position,
+                total = candidates.size,
+                onOpen = { onOpen(item.id) },
+                onToggle = { onToggle(item.id) },
+                onInstall = {
+                    when {
+                        item.state == DownloadState.NEEDS_PERMISSION ->
+                            Installer.openUnknownSourcesSettings(context)
+                        item.uninstallFirst -> item.apkPackage?.let { Installer.uninstall(context, it) }
+                        else -> DownloadEngine.install(context, item.id)
+                    }
+                },
+                onStep = onStep,
+                onCatalogue = { catalogueOpen = !catalogueOpen },
+                onDismiss = onDismiss,
+                seam = seam,
+                modifier = Modifier.onSizeChanged { onHeight(it.height) },
+            )
+        }
+    }
+}
+
 @Composable
 private fun ProfileSheet(
     onManageApps: () -> Unit,
+    onDeviceApps: () -> Unit,
     onDownloads: () -> Unit,
     onAbout: () -> Unit,
     onInstallSettings: () -> Unit,
     onSettings: () -> Unit,
 ) {
-    // At a 2.0× text size the five items are taller than the phone, and a Column that simply
-    // overflows is cut by the screen: measured on the Redmi, "Downloads" ended mid-sentence at the
-    // bottom edge and *Settings* and *About* were below it and unreachable. Scrolling the content
-    // inside the sheet lets the sheet end at the screen and every item be reached.
+    // At a 2.0× text size the items are taller than the phone, and a Column that simply overflows is
+    // cut by the screen: measured on the Redmi, "Downloads" ended mid-sentence at the bottom edge and
+    // *Settings* and *About* were below it and unreachable. Scrolling the content inside the sheet
+    // lets the sheet end at the screen and every item be reached.
     Column(
         Modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .padding(bottom = 24.dp),
+            .padding(top = 8.dp, bottom = 24.dp),
     ) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier.size(44.dp),
-            ) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    GlyphIcon(Glyph.Person, size = 22.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            Column {
-                Text(stringResource(R.string.account_guest), style = MaterialTheme.typography.titleMedium)
-                Text(
-                    stringResource(R.string.account_guest_note),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+        // No account block at the top. This build has no accounts, so the one thing it could say was
+        // "Guest" and a sentence explaining that installs are unattributed — a heading for a feature
+        // that does not exist, above five items that do.
         SheetItem(Glyph.Update, R.string.sheet_manage_apps, R.string.sheet_manage_apps_note, onManageApps)
+        SheetItem(Glyph.Grid, R.string.sheet_device_apps, R.string.sheet_device_apps_note, onDeviceApps)
         SheetItem(Glyph.Download, R.string.sheet_downloads, R.string.sheet_downloads_note, onDownloads)
         SheetItem(
             Glyph.Shield,
@@ -1025,7 +1169,7 @@ private fun ProfileSheet(
             R.string.sheet_install_permission_note,
             onInstallSettings,
         )
-        SheetItem(Glyph.Update, R.string.sheet_settings, R.string.sheet_settings_note, onSettings)
+        SheetItem(Glyph.Shield, R.string.sheet_settings, R.string.sheet_settings_note, onSettings)
         SheetItem(Glyph.Info, R.string.sheet_about, R.string.sheet_about_note, onAbout)
     }
 }
@@ -1050,45 +1194,6 @@ private fun SheetItem(glyph: Glyph, @StringRes title: Int, @StringRes subtitle: 
             )
         }
     }
-}
-
-@Composable
-private fun AboutDialog(onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.about_close)) } },
-        title = { Text(stringResource(R.string.about_title)) },
-        text = {
-            // AlertDialog bounds its text slot but does not scroll it, so at a 2.0× text size the
-            // third section (and half of the second) sat below the dialog's edge with no way to
-            // reach it. Scrolling the column keeps every word reachable inside the same dialog.
-            Column(
-                Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                InfoRow(
-                    Glyph.Shield,
-                    stringResource(R.string.about_verified),
-                    subtitle = stringResource(R.string.about_verified_body),
-                )
-                InfoRow(
-                    Glyph.Info,
-                    stringResource(R.string.about_cannot_prove),
-                    subtitle = stringResource(R.string.about_cannot_prove_body),
-                )
-                InfoRow(
-                    Glyph.Update,
-                    stringResource(R.string.about_updates),
-                    subtitle = stringResource(R.string.about_updates_body),
-                )
-                InfoRow(
-                    Glyph.Library,
-                    stringResource(R.string.about_servers),
-                    subtitle = stringResource(R.string.about_servers_body),
-                )
-            }
-        },
-    )
 }
 
 /**

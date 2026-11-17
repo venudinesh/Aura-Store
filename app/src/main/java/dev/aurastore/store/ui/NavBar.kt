@@ -58,8 +58,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -144,6 +146,19 @@ object FloatingBar {
         else base.copy(fontSize = base.fontSize / fontScale * maxLabelScale)
 
     /**
+     * [labelStyle] with a soft dark edge. The dock's type sits over a moving fill, and some styles
+     * put a bright band exactly where a line of text runs; the shadow keeps the letterform readable
+     * without putting an opaque plate behind it and hiding the effect.
+     */
+    fun legibleStyle(base: TextStyle, fontScale: Float): TextStyle = labelStyle(base, fontScale).copy(
+        shadow = Shadow(
+            color = Color.Black.copy(alpha = 0.72f),
+            offset = Offset(0f, 1f),
+            blurRadius = 4f,
+        ),
+    )
+
+    /**
      * The sheet's height at the phone's text size.
      *
      * A fixed 68 dp was measured on the Redmi at a 2.0× font scale and the label's line grew to 32 dp, so
@@ -200,7 +215,8 @@ object FloatingBar {
      *
      * The cap is what keeps a wide label set — or a tablet in landscape — inside the content area.
      * The Bar Width slider sweeps from 60 % up to 150 %: below 100 % it squeezes the pill, at 100 %
-     * it draws at the measured pill width, and above 100 % it expands the pill up to 150 % (capped at content width).
+     * it draws at the measured pill width, and above 100 % it expands the pill up to 150 % (capped at
+     * content width). The bar ships at 116 %, one step above its own pill.
      */
     fun sheetWidth(pill: Dp, widthFraction: Float, content: Dp): Dp {
         val fraction = widthFraction.coerceIn(0.6f, 1.5f)

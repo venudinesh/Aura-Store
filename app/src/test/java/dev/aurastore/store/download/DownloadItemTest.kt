@@ -162,18 +162,22 @@ class DownloadItemTest {
     }
 
     @Test
-    fun `clearing the list only takes rows whose story is over`() {
-        // "Not downloading" is not the same question, and getting it wrong deletes a build the user
-        // asked for and has not installed yet — including one waiting behind an uninstall.
+    fun `clearing the list takes rows whose transfer is over`() {
+        // A verified build waiting for Install is finished downloading. Leaving READY out made the
+        // button do nothing on a queue of ready rows, so it is disposable now; paused and failed
+        // rows are not, because their bytes are incomplete and the row is the way back to them.
+        assertTrue(at(DownloadState.READY).isDisposable)
         assertTrue(at(DownloadState.INSTALLED).isDisposable)
         assertTrue(at(DownloadState.CANCELED).isDisposable)
         for (state in listOf(
             DownloadState.QUEUED, DownloadState.DOWNLOADING, DownloadState.VERIFYING,
-            DownloadState.PAUSED, DownloadState.READY, DownloadState.FAILED,
-            DownloadState.NEEDS_PERMISSION, DownloadState.AWAITING_CONFIRMATION,
+            DownloadState.PAUSED, DownloadState.FAILED, DownloadState.NEEDS_PERMISSION,
+            DownloadState.AWAITING_CONFIRMATION, DownloadState.INSTALLING,
         )) {
             assertFalse("$state still owns something the user may want", at(state).isDisposable)
         }
-        assertFalse(verified("aaa1").copy(uninstallFirst = true).isDisposable)
+        // An install held behind an uninstall is still a finished download; clearing it drops the
+        // file, which is what an explicit tap on "Clear finished" asks for.
+        assertTrue(verified("aaa1").copy(uninstallFirst = true).isDisposable)
     }
 }

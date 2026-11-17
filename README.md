@@ -6,7 +6,7 @@
   **A phone shop for Android. It shows you what it checked before it hands you an app.**
 
   <p>
-    <a href="#get-the-app"><img alt="Aura Store 1.5.0" src="https://img.shields.io/badge/download-Aura%20Store%201.5.0-f6feb4?style=for-the-badge"></a>
+    <a href="#get-the-app"><img alt="Aura Store 1.6.0" src="https://img.shields.io/badge/download-Aura%20Store%201.6.0-f6feb4?style=for-the-badge"></a>
     <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.4-7f52ff?style=for-the-badge">
     <img alt="Android" src="https://img.shields.io/badge/Android-8.1%2B-3ddc84?style=for-the-badge">
     <img alt="Licence" src="https://img.shields.io/badge/licence-MIT-22a559?style=for-the-badge">
@@ -60,11 +60,16 @@ keeps working. It just cannot place that folder for you.
 - **Choose where a file comes from.** A download asks first. It says which sites have the app and
   which do not, and it downloads from the one you pick. Settings has a default source, and the sheet
   opens there.
+- **Make the shop yours.** The You tab is a profile now: a picture from the set or from your gallery,
+  one of eight frames that turn with the page, and a cover drawn from four presets or cropped from a
+  photo. Five tabs sit under it: Overview, Screen time, Wishlist, Updates and Style. Screen time
+  counts the hours spent in games and apps installed from this store, once Android grants usage
+  access. The same picture and frame sit in the top bar on every screen.
 - **Keep up with updates.** The You tab lists what you have installed and what is newer. Apps this
   store installed can update themselves. A notification names each app that has one, with the app's
   own icon and its version pair. Apps from elsewhere are matched back by their package name and wait
   for your tap.
-- **Update the store itself.** Settings shows the build as `1.5.0 (10500)` and has *Check now*. When
+- **Update the store itself.** Settings shows the build as `1.6.0 (10600)` and has *Check now*. When
   GitHub has a newer release, a banner under the brand bar names it and offers it without waiting for
   the next launch. The download shows its own bar, its percentage and its byte count, then checks the
   file against the published SHA-256 and hands it to Android's installer.
@@ -115,7 +120,10 @@ None of this makes a downloaded APK safe to run.
 ## Get the app
 
 [Releases](https://github.com/venudinesh/Aura-Store/releases) have their own page. Download
-`Aura-Store-v1.5.0.apk`, open it, and let Android install it.
+`Aura-Store-v1.6.0.apk`, open it, and let Android install it.
+
+1.6.0 carries the replacement project key. A 1.5.0 copy downloaded from this page is signed with the
+lost key, so Android refuses to install 1.6.0 over it. Uninstall 1.5.0 once, then install 1.6.0.
 
 1. Open the downloaded file. Android asks whether your browser or file manager may install unknown
    apps. Allow it for that app, then tap Install.
@@ -174,9 +182,9 @@ before anything is built.
 
 ## Tests
 
-365 JVM tests across 47 classes cover the parsers, both pagers, queue persistence, the transfer core,
+424 JVM tests across 56 classes cover the parsers, both pagers, queue persistence, the transfer core,
 failure mapping, package identity, archive extraction, the shelf parsers of every source, the update
-rules, the version numbering and the glass presets.
+rules, the version numbering, the profile data and the glass presets.
 
 20 instrumented tests cover the navigation bar, saved state, row rendering, OBB placement and the
 update notification's per-app icon and name. Run them with a device attached:
@@ -220,4 +228,7 @@ for them, and it takes nothing of theirs but what they already serve.
 - Kotlin, Jetpack Compose, OkHttp, Coil and WorkManager, all Apache 2.0.
 - The typeface is [Manrope](https://github.com/sharanda/manrope) by Mikhail Sharanda, SIL Open Font
   License 1.1, full text in [`licenses/Manrope-OFL.txt`](licenses/Manrope-OFL.txt).
+- The car in the NOS download animation is baked from "Ferrari 458 Italia" by vicent091036, shipped
+  with the three.js examples, CC BY 4.0. The sprite is recoloured and the wheels are drawn live;
+  attribution and changes are in [`licenses/Ferrari-458-CC-BY-4.0.txt`](licenses/Ferrari-458-CC-BY-4.0.txt).
 - The prose in this repository is checked with [anti-ai-slop](https://github.com/misbahsy/anti-ai-slop).

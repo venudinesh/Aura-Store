@@ -74,6 +74,18 @@ data class SourceApp(
 )
 
 /**
+ * What an app's own page says beyond its card.
+ *
+ * [description] is the site's prose, still HTML: the catalogue hands its panels over the same way and
+ * the screen strips them with the one renderer the store already has. [screenshots] are the full-size
+ * pictures in the order the page draws them, never the thumbnails beside them.
+ */
+data class SourceDetail(
+    val description: String = "",
+    val screenshots: List<String> = emptyList(),
+)
+
+/**
  * One page of a source's category listing.
  *
  * The sites draw a fixed number of cards per page and offer a link to the next one; [hasMore] is that
@@ -109,6 +121,16 @@ interface Source {
     val id: SourceId
     suspend fun search(query: String): List<SourceApp>
     suspend fun files(app: SourceApp): List<SourceFile>
+
+    /**
+     * The app's own page: the prose and the pictures a row cannot carry.
+     *
+     * Every site here draws a card and, under it, a page with a description and a screenshot strip.
+     * A source that does not publish one answers what its card already says, so a page opened from
+     * it still has a title and a file list rather than an empty shell.
+     */
+    suspend fun detail(app: SourceApp): SourceDetail =
+        SourceDetail(description = app.subtitle.orEmpty())
 
     /** The source's newest apps, in the order the source itself lists them. */
     suspend fun latest(): List<SourceApp> = emptyList()
@@ -292,6 +314,80 @@ internal object Web {
         .trim()
         .let { decodeEntities(it) }
 }
+
+/**
+ * The opening tags in [html] that carry [attribute] with the exact [value].
+ *
+ * The site adapters used to assume an attribute order (`href` before `class`, or the other way
+ * round). A page is the same page whichever order it writes its attributes in, so the selectors here
+ * ask the tag what it carries instead of matching a whole tag shape.
+ */
+internal fun tagsHaving(html: String, tag: String, attribute: String, value: String): List<String> =
+    Regex(
+        "<$tag\\b[^>]*\\b${Regex.escape(attribute)}\\s*=\\s*([\"'])${Regex.escape(value)}\\1[^>]*>",
+        RegexOption.IGNORE_CASE,
+    ).findAll(html).map { it.value }.toList()
+
+/** One attribute of a raw tag, in either quote style. */
+internal fun tagAttribute(tag: String, attribute: String): String? {
+    val match = Regex(
+        "\\b${Regex.escape(attribute)}\\s*=\\s*([\"'])(.*?)\\1",
+        RegexOption.IGNORE_CASE,
+    ).find(tag) ?: return null
+    return match.groupValues[2].ifBlank { null }
+}
+
+/**
+ * The body after the first tag carrying [marker], up to [stop].
+ *
+ * [marker] is a fragment of the opening tag (`id="nx-desc"`), so the body starts after that tag's
+ * `>` and the tag itself never leaks into the prose.
+ */
+internal fun proseAfter(html: String, marker: String, stop: String = "</div>"): String {
+    val at = html.indexOf(marker, ignoreCase = true)
+    if (at < 0) return ""
+    val openEnd = html.indexOf('>', at)
+    if (openEnd < 0) return ""
+    val end = html.indexOf(stop, openEnd + 1, ignoreCase = true)
+    return html.substring(openEnd + 1, if (end < 0) html.length else end)
+}
+
+/** The `content` of the first meta tag naming [name], or the `og:` property when the page uses that. */
+internal fun metaContent(html: String, name: String): String =
+    tagsHaving(html, "meta", "name", name).firstNotNullOfOrNull { tagAttribute(it, "content") }
+        ?: tagsHaving(html, "meta", "property", "og:$name").firstNotNullOfOrNull { tagAttribute(it, "content") }
+        ?: ""
+
+/** Screenshots a page publishes as JSON-LD (`"screenshot": [...]`), with the slashes unescaped. */
+internal fun jsonLdScreenshots(html: String): List<String> {
+    val block = Regex("\"screenshot\"\\s*:\\s*\\[(.*?)]", RegexOption.DOT_MATCHES_ALL)
+        .find(html) ?: return emptyList()
+    return Regex("\"([^\"]+)\"").findAll(block.groupValues[1])
+        .map { decodeEntities(it.groupValues[1].replace("\\/", "/")) }
+        .filter { it.startsWith("http") }
+        .toList()
+}
+
+/** Images an element body draws, from `src` or a lazy loader's `data-src`. */
+internal fun imageUrlsIn(block: String): List<String> =
+    Regex("<img\\b[^>]*>", RegexOption.IGNORE_CASE).findAll(block)
+        .mapNotNull { tag ->
+            tagAttribute(tag.value, "data-src") ?: tagAttribute(tag.value, "src")
+        }
+        .filter { it.startsWith("http") }
+        .toList()
+
+/** The full-size target of every gallery anchor whose class carries [className]. */
+internal fun galleryLinks(html: String, className: String, base: String): List<String> =
+    Regex("<a\\b[^>]*>", RegexOption.IGNORE_CASE).findAll(html)
+        .map { it.value }
+        .filter { tag ->
+            tagAttribute(tag, "class")?.split(Regex("\\s+"))?.contains(className) == true
+        }
+        .mapNotNull { tag -> tagAttribute(tag, "href") }
+        .map { Web.absolute(base, it) }
+        .distinct()
+        .toList()
 
 /**
  * Decodes HTML entities once. Shares the model layer's numeric-entity decode so a title scraped from a

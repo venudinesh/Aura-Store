@@ -4,6 +4,7 @@ import dev.aurastore.store.R
 import dev.aurastore.store.data.sources.SourceId
 import dev.aurastore.store.download.DownloadItem
 import dev.aurastore.store.download.DownloadState
+import dev.aurastore.store.ui.settings.SettingsSection
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -24,8 +25,13 @@ class ScreenMotionTest {
     private val racing = Screen.Category(9L)
     private val detail = Screen.Detail(45327L)
     private val settings = Screen.Settings
+    private val settingsGroup = Screen.SettingsGroup(SettingsSection.NAVIGATION)
     private val source = Screen.Source(SourceId.NINEMOD, "mega")
     private val download = Screen.Download("3f2a1b90-0000-0000-0000-000000000001")
+    private val queue = Screen.Downloads
+    private val manage = Screen.Manage
+    private val device = Screen.Device
+    private val about = Screen.About
 
     @Test
     fun `only the tabs sit at the surface`() {
@@ -35,6 +41,13 @@ class ScreenMotionTest {
         assertEquals(1, settings.depth())
         assertEquals(1, source.depth())
         assertEquals(1, download.depth())
+        // The four library pages are doors off the fifth tab, not floors.
+        assertEquals(1, queue.depth())
+        assertEquals(1, manage.depth())
+        assertEquals(1, device.depth())
+        assertEquals(1, about.depth())
+        // A Settings category is a page over the hub, not a sibling of it.
+        assertEquals(2, settingsGroup.depth())
         assertEquals(2, detail.depth())
     }
 

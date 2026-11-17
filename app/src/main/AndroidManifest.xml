@@ -22,6 +22,11 @@
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
+    <!-- Screen time for apps installed from here. The user grants this in the system's usage-access
+         page; declaring it is not a runtime prompt and does not make the app privileged. -->
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
 
     <!-- Needed to start apps that were installed from here (package visibility, API 30+). -->
     <queries>

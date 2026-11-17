@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The launcher's foreground: the same signature A the splash writes, in one hand.
+
+  Two paths in the 108-unit adaptive space: the body, with the left leg to the crown, the right
+  leg down to the baseline and the short line back to the bar, then the bar itself. The 136 × 212
+  art of the splash is scaled to 0.30 and centred on (54, 54), so the ink spans x 37.2..70.8 and
+  y 27..81 and its furthest point sits 31.4 from the centre, inside the 33.1 the safe circle
+  guarantees. The stroke is 4.6 units because a pen that reads at splash size disappears at
+  launcher size.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFF2E9DE"
+        android:strokeWidth="4.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M43.2,79.8 Q47.4,51.6 54,27 Q60.6,52.2 64.8,81 L37.2,55.2" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFF2E9DE"
+        android:strokeWidth="4.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M37.2,55.2 L70.8,55.2" />
+</vector>

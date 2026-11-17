@@ -216,6 +216,63 @@ class WebSourcesTest {
         assertEquals("181.57 MB", files[0].size)
     }
 
+    // ------------------------------------------------------- app pages
+
+    /**
+     * A row only carries a card. The page behind it carries the prose and the pictures, and these are
+     * the selectors that find them on each site's live markup.
+     */
+    @Test
+    fun `5play detail reads the long description and the full-size screenshots`() {
+        val detail = FivePlaySource.parseDetail(fixture("5play_detail.html"), "https://5play.org/en/")
+        assertTrue("description was blank", detail.description.length > 200)
+        assertTrue(detail.description.contains("Brawl Stars", ignoreCase = true))
+        assertTrue("no screenshots", detail.screenshots.size >= 2)
+        assertTrue(detail.screenshots.all { it.startsWith("https://cdn.5play.org/") })
+        // The strip shows a medium copy in the img; the anchor is the full file.
+        assertTrue("thumbnail was taken as the screenshot", detail.screenshots.none { it.contains("/medium/") })
+        assertEquals(detail.screenshots.size, detail.screenshots.distinct().size)
+    }
+
+    @Test
+    fun `an1 detail reads the spoiler prose and the screenshot metas`() {
+        val detail = An1Source.parseDetail(fixture("an1_detail.html"), "https://an1.com/")
+        assertTrue("description was blank", detail.description.length > 200)
+        assertTrue(detail.description.contains("Bowmasters", ignoreCase = true))
+        // The description div also holds the FAQ and the sharing block; the cut is at the screenshots.
+        assertFalse(detail.description.contains("Comments", ignoreCase = true))
+        assertTrue("no screenshots", detail.screenshots.size >= 3)
+        assertTrue(detail.screenshots.all { it.startsWith("https://an1.com/uploads/screenshots/") })
+        assertTrue(detail.screenshots.none { it.contains("/thumbs/") })
+    }
+
+    @Test
+    fun `getmodsapk detail reads the post content and the lightbox anchors`() {
+        val detail = GetModsApkSource.parseDetail(fixture("getmodsapk_detail.html"), "https://getmodsapk.com/")
+        assertTrue("description was blank", detail.description.length > 200)
+        assertTrue(detail.description.contains("Clash Royale", ignoreCase = true))
+        assertTrue("no screenshots", detail.screenshots.size >= 2)
+        assertTrue(detail.screenshots.all { it.startsWith("https://getmodsapk.com/storage/media/") })
+        assertEquals(detail.screenshots.size, detail.screenshots.distinct().size)
+    }
+
+    @Test
+    fun `apkvision detail reads the post description and its structured screenshots`() {
+        val detail = ApkVisionSource.parseDetail(fixture("apkvision_detail.html"), "https://apkvision.org/")
+        assertTrue("description was blank", detail.description.length > 200)
+        assertTrue(detail.description.contains("WWE", ignoreCase = true))
+        assertTrue("no screenshots", detail.screenshots.size >= 3)
+        assertTrue(detail.screenshots.all { it.startsWith("https://img.apkvision.org/") })
+        assertEquals(detail.screenshots.size, detail.screenshots.distinct().size)
+    }
+
+    @Test
+    fun `9mod detail reads the entry content and the images it carries`() {
+        val detail = NineModSource.parseDetail(fixture("9mod_app.html"), "https://9mod.com/")
+        assertTrue("description was blank", detail.description.isNotBlank())
+        assertTrue(detail.screenshots.all { it.startsWith("http") })
+    }
+
     // ---------------------------------------------------------------- registry
 
     @Test

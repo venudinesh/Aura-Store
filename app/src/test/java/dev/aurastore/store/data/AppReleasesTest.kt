@@ -87,6 +87,37 @@ class AppReleasesTest {
     }
 
     @Test
+    fun bothBuildsTravelAndThePreferenceChoosesBetweenThem() {
+        val release = AppReleases.parse(release(), debuggable = false)!!
+        assertEquals(2, release.builds.size)
+        assertFalse(release.builds.first().debug)
+        assertTrue(release.has(true))
+        assertTrue(release.has(false))
+        assertEquals("Aura-Store-v1.1.0.apk", release.build(UpdateBuild.AUTO)?.name)
+        assertEquals("Aura-Store-v1.1.0.apk", release.build(UpdateBuild.RELEASE)?.name)
+        assertEquals("Aura-Store-v1.1.0-debug.apk", release.build(UpdateBuild.DEBUG)?.name)
+    }
+
+    @Test
+    fun theDebugBuildIsTheInstalledOneOnADebugInstall() {
+        val release = AppReleases.parse(release(), debuggable = true)!!
+        assertEquals("Aura-Store-v1.1.0-debug.apk", release.installed.name)
+        assertEquals("Aura-Store-v1.1.0-debug.apk", release.build(UpdateBuild.AUTO)?.name)
+        assertEquals("Aura-Store-v1.1.0.apk", release.build(UpdateBuild.RELEASE)?.name)
+    }
+
+    @Test
+    fun aBuildTheReleaseDoesNotCarryIsNullNotTheOtherBuild() {
+        val onlySigned = AppReleases.parse(
+            release(assets = asset("Aura-Store-v1.1.0.apk", "https://example.test/a.apk", 10)),
+            debuggable = false,
+        )!!
+        assertFalse(onlySigned.has(true))
+        assertNull(onlySigned.build(UpdateBuild.DEBUG))
+        assertEquals("Aura-Store-v1.1.0.apk", onlySigned.build(UpdateBuild.RELEASE)?.name)
+    }
+
+    @Test
     fun aBuildWithNoMatchingSignatureHasNothingToOffer() {
         val onlySigned = release(assets = asset("Aura-Store-v1.1.0.apk", "https://example.test/a.apk", 10))
         assertNull(AppReleases.parse(onlySigned, debuggable = true))

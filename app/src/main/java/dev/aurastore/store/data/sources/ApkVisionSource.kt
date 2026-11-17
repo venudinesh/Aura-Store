@@ -195,6 +195,33 @@ object ApkVisionSource : Source {
         }.distinctBy { it.url }
     }
 
+    /**
+     * The app's own page: the post body and the JSON-LD screenshot set.
+     *
+     * The page draws a screenshot tray below the prose, but the list it draws from is the
+     * `screenshot` array in its structured data. Reading that once keeps the gallery in the page's
+     * own order and skips the thumbnails and the placeholder tiles.
+     */
+    override suspend fun detail(app: SourceApp): SourceDetail {
+        val pageUrl = app.pageUrl ?: app.key
+        return parseDetail(Web.get(pageUrl), pageUrl)
+    }
+
+    /** Pure: an ApkVision app page's description and screenshots. */
+    fun parseDetail(html: String, base: String): SourceDetail {
+        val description = proseAfter(html, "id=\"apk-post-description\"")
+            .ifBlank { proseAfter(html, "class=\"apk-post-description\"") }
+            .ifBlank { metaContent(html, "description") }
+        val screenshots = (
+            jsonLdScreenshots(html) +
+                tagsHaving(html, "meta", "itemprop", "screenshot")
+                    .mapNotNull { tagAttribute(it, "content") }
+            )
+            .map { Web.absolute(base, it) }
+            .distinct()
+        return SourceDetail(description = description, screenshots = screenshots)
+    }
+
     fun extractNonce(html: String): String? =
         Regex("""apkFindConfig\s*=\s*\{.*?"nonce"\s*:\s*"([^"]+)"""", RegexOption.DOT_MATCHES_ALL)
             .find(html)?.groupValues?.get(1)

@@ -11,13 +11,18 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -26,12 +31,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -39,24 +46,32 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.clipRect
-import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.animation.animateColorAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import dev.aurastore.store.R
+import dev.aurastore.store.data.Settings
 import dev.aurastore.store.download.DownloadEngine
 import dev.aurastore.store.download.DownloadItem
 import dev.aurastore.store.download.DownloadState
@@ -64,30 +79,72 @@ import dev.aurastore.store.download.TransferRate
 import dev.aurastore.store.theme.EmphasizedAccelerateEasing
 import dev.aurastore.store.theme.EmphasizedDecelerateEasing
 import dev.aurastore.store.theme.EmphasizedEasing
+import dev.aurastore.store.ui.ArtImage
 import dev.aurastore.store.ui.FloatingBar
 import dev.aurastore.store.theme.PlayMotion
 import dev.aurastore.store.theme.StandardAccelerateEasing
 import dev.aurastore.store.theme.StandardEasing
 import dev.aurastore.store.ui.Glyph
 import dev.aurastore.store.ui.GlyphIcon
+import dev.aurastore.store.ui.downloadRowStatus
 import dev.aurastore.store.ui.playClickable
+import dev.aurastore.store.ui.playPressed
+import dev.aurastore.store.ui.statusText
+import kotlin.math.abs
 
 /**
- * Which row the dock should follow, or null when there is nothing worth a floating panel.
+ * Every row the dock can show, in the order it shows them.
  *
- * One row, in the order a person would care about it: the transfer actually moving, then one waiting
- * its turn, then one the user paused, then a finished file whose install is the next thing to do. The
- * newest row wins inside a group because the queue is appended to, and a fresh request is the one the
- * user just made. A finished (installed), cancelled or failed row is deliberately not a candidate: the
- * dock is a control panel, not a second queue, and those rows already say what they are in the list.
+ * The order is the one a person would care about: transfers actually moving, then the ones waiting
+ * their turn, then the ones the user paused, then the finished files whose install is the next thing
+ * to do. The newest row wins inside a group because the queue is appended to, and a fresh request is
+ * the one the user just made. A finished (installed), cancelled or failed row is deliberately absent:
+ * the dock is a control panel, not a second queue, and those rows already say what they are in the list.
+ *
+ * The first row is what the panel opens on. The rest are what a horizontal swipe flips through, and
+ * what a long press lists, so both gestures and the `+N` badge read from this one order.
  */
-internal fun dockCandidate(items: List<DownloadItem>): DownloadItem? {
+internal fun dockCandidates(items: List<DownloadItem>): List<DownloadItem> {
     val newest = items.asReversed()
-    fun pick(vararg states: DownloadState) = newest.firstOrNull { it.state in states }
-    return pick(DownloadState.DOWNLOADING, DownloadState.VERIFYING)
-        ?: pick(DownloadState.QUEUED)
-        ?: pick(DownloadState.PAUSED)
-        ?: pick(DownloadState.READY, DownloadState.NEEDS_PERMISSION, DownloadState.AWAITING_CONFIRMATION)
+    fun group(vararg states: DownloadState) = newest.filter { it.state in states }
+    return group(DownloadState.DOWNLOADING, DownloadState.VERIFYING) +
+        group(DownloadState.QUEUED) +
+        group(DownloadState.PAUSED) +
+        group(DownloadState.READY, DownloadState.NEEDS_PERMISSION, DownloadState.AWAITING_CONFIRMATION)
+}
+
+/**
+ * The dock's page-turn rule.
+ *
+ * The same shape as [dev.aurastore.store.ui.SwipeStep], on a much narrower card: a fifth of the card
+ * or a flick turns it, a slow nudge springs back, and the ends stay put. The rule lives here rather
+ * than in the gesture so the six cases can be checked without a screen.
+ */
+internal object DockSwipe {
+    /** How far the card must travel before letting go turns it: 18 % of its width. */
+    const val COMMIT_FRACTION = 0.18f
+
+    /** A flick this fast turns the card even when it ends early: 900 px a second. */
+    const val FLICK_VELOCITY = 900f
+
+    /**
+     * The step to take: `1` for the next row, `-1` for the previous, `0` to stay.
+     *
+     * Dragging left (negative [dx]) asks for the next row, because the card moves left the way a
+     * pager's next page comes in from the right. The ends clamp, so a swipe outward on the first or
+     * last row springs back instead of wrapping to a row the finger was not pointing at.
+     */
+    fun step(position: Int, count: Int, dx: Float, velocityX: Float, widthPx: Float): Int {
+        if (count < 2 || position !in 0 until count || widthPx <= 0f) return 0
+        val farEnough = abs(dx) > widthPx * COMMIT_FRACTION
+        val flicked = abs(velocityX) > FLICK_VELOCITY
+        if (!farEnough && !flicked) return 0
+        // A flick says the direction even when the finger barely moved, so distance and speed each
+        // get a turn; distance wins when both speak, because it is the movement the user saw.
+        val forward = if (farEnough) dx < 0f else velocityX < 0f
+        val next = (position + if (forward) 1 else -1).coerceIn(0, count - 1)
+        return next - position
+    }
 }
 
 /** The one control the panel offers, derived from the row so the two can never disagree. */
@@ -113,15 +170,36 @@ private enum class DockControl { PAUSE, RESUME, INSTALL, UNINSTALL, ALLOW }
 @Composable
 fun DownloadDock(
     item: DownloadItem,
-    more: Int,
+    /** Where this row sits in [dockCandidates], for the ends and the page-turn rule. */
+    position: Int,
+    /** How many rows [dockCandidates] holds; the `+N` badge counts the others. */
+    total: Int,
     onOpen: () -> Unit,
     onToggle: () -> Unit,
     onInstall: () -> Unit,
+    /** Take a page turn: `1` for the next row, `-1` for the previous. */
+    onStep: (Int) -> Unit,
+    /** A hold on the card opens the list of every row the panel can show. */
+    onCatalogue: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     /** True when the navigation bar sits directly under this card: the seam is a shared edge. */
     seam: Boolean = false,
 ) {
+    var dragX by remember { mutableFloatStateOf(0f) }
+    var dragging by remember { mutableStateOf(false) }
+    var cardWidth by remember { mutableFloatStateOf(0f) }
+    // The card follows the finger just enough to say it is draggable. A float set synchronously,
+    // snapped into the layer while the finger is down, avoids the frame of lag an Animatable launched
+    // from every pointer event costs; the same float is the target of the settle once the hand lifts.
+    val settle by animateFloatAsState(
+        targetValue = dragX,
+        animationSpec = if (dragging) snap() else PlayMotion.spec(PlayMotion.MEDIUM, StandardEasing),
+        label = "dock-drag",
+    )
+    val pressSource = remember { MutableInteractionSource() }
+    val nextLabel = stringResource(R.string.dock_next)
+    val previousLabel = stringResource(R.string.dock_previous)
     val dockShape = RoundedCornerShape(
         topStart = 26.dp,
         topEnd = 26.dp,
@@ -144,11 +222,10 @@ fun DownloadDock(
     // full the transfer is — and a progress tick that lands 60 ms late moves both at once.
     val fraction by animateFloatAsState(
         targetValue = item.progress.coerceIn(0f, 1f),
-        // Linear and short, so the ring *chases* the bytes: a standard ease restarted by every
-        // progress tick never finishes easing and the arc visibly lags, which reads as a stuck
-        // download. A linear tween re-targets from wherever the arc is, which is what Play's circular
-        // indicator does.
-        animationSpec = tween(durationMillis = 360, easing = LinearEasing),
+        // Linear, not sprung: bytes arrive at a rate, and the fill should read as that rate. A tween
+        // retargets on every tick, so the head never stops between them and never overshoots a
+        // number the sentence beside it is already showing.
+        animationSpec = PlayMotion.spec(900, LinearEasing),
         label = "dock-progress",
     )
     // The percentage counts rather than jumping: a percentage is the number the eye watches, and a
@@ -158,9 +235,12 @@ fun DownloadDock(
         animationSpec = PlayMotion.spec(PlayMotion.MEDIUM, StandardEasing),
         label = "dock-percent",
     )
-    // One travelling highlight shared by both drawings. A paused, queued or finished row is still: a
+    // One travelling phase shared by both drawings. A paused, queued or finished row is still: a
     // panel that keeps moving after the bytes stop is claiming work that is not happening.
-    val shine = if (moving) rememberDockShine() else 0f
+    val phase = if (moving) rememberDockPhase() else 0f
+    // The chosen meter. The card's fill is the panel's own long-running animation, so the style is
+    // read here rather than pushed in from the shell: a pick in Settings repaints this card alone.
+    val dockAnimation by Settings.dockAnimation.collectAsStateWithLifecycle()
     // The border answers the state: transparent while bytes move, primary once there is a file to
     // install. It is the quietest way to say "this row is finished" without adding another line.
     val border by animateColorAsState(
@@ -173,16 +253,49 @@ fun DownloadDock(
         color = scheme.surfaceContainerHigh,
         shadowElevation = 12.dp,
         border = BorderStroke(1.dp, border),
-        modifier = modifier.fillMaxWidth().clip(dockShape).playClickable(onClick = onOpen),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(dockShape)
+            .onSizeChanged { cardWidth = it.width.toFloat() }
+            .graphicsLayer { translationX = settle }
+            // The click owns the tap and the hold; the drag is on the content, one node below, so
+            // the two never race for the same down. A drag past touch slop consumes its movement and
+            // the press cancels, which is what keeps a swipe from also opening the page and a hold
+            // from also counting as a tap.
+            .playPressed(pressSource)
+            .combinedClickable(
+                interactionSource = pressSource,
+                indication = LocalIndication.current,
+                onClick = onOpen,
+                onLongClick = onCatalogue,
+                onLongClickLabel = stringResource(R.string.dock_catalogue_hold),
+            )
+            // A screen reader cannot swipe a card, so the same two moves are named actions. They are
+            // only offered when there is somewhere to go, so an inert action is never announced.
+            .semantics {
+                if (total > 1) {
+                    customActions = listOf(
+                        CustomAccessibilityAction(nextLabel) {
+                            onStep(1)
+                            true
+                        },
+                        CustomAccessibilityAction(previousLabel) {
+                            onStep(-1)
+                            true
+                        },
+                    )
+                }
+            },
     ) {
         Box(Modifier.fillMaxWidth()) {
             // The transfer is the card's own background now: the wash grows from the leading edge to
             // the fraction, and the name, the sentence and the controls all sit on top of it.
-            ProgressWash(
+            DockProgressLayer(
+                animation = dockAnimation,
                 fraction = fraction,
                 state = item.state,
                 done = ready,
-                shine = shine,
+                phase = phase,
                 modifier = Modifier.matchParentSize(),
             )
             Row(
@@ -192,46 +305,96 @@ fun DownloadDock(
                 Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                DockThumb(item = item, done = ready)
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            item.title,
-                            style = FloatingBar.labelStyle(MaterialTheme.typography.titleSmall, fontScale),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                        if (more > 0) {
-                            Spacer(Modifier.width(6.dp))
-                            MoreBadge(more)
-                        }
-                    }
-                    // The sentence swaps rather than being repainted: "Downloading" becoming
-                    // "Ready to install" is the engine finishing something, and it should look like it.
-                    AnimatedContent(
-                        // Keyed on the *state*, never on the sentence. The sentence carries a
-                        // percentage that moves several times a second, and a crossfade restarted on
-                        // every tick leaves the line permanently half-faded — measured on the handset
-                        // as text that looked washed out for the whole download.
-                        targetState = item.state,
-                        transitionSpec = {
-                            ContentTransform(
-                                targetContentEnter = fadeIn(PlayMotion.spec(PlayMotion.SHORT, EmphasizedEasing)),
-                                initialContentExit = fadeOut(PlayMotion.spec(PlayMotion.SHORT, StandardAccelerateEasing)),
-                                sizeTransform = SizeTransform(clip = false),
+                Row(
+                    // The gesture belongs to the app's own face, not to the whole card. Pause,
+                    // Install and the close mark keep their taps, and a swipe that starts on one of
+                    // them never turns the card; only the icon and the two lines do.
+                    Modifier
+                        .weight(1f)
+                        .pointerInput(position, total) {
+                            if (total < 2) return@pointerInput
+                            val tracker = VelocityTracker()
+                            var travelled = 0f
+                            detectHorizontalDragGestures(
+                                onDragStart = {
+                                    travelled = 0f
+                                    dragX = 0f
+                                    dragging = true
+                                    tracker.resetTracking()
+                                },
+                                onDragCancel = {
+                                    dragging = false
+                                    dragX = 0f
+                                },
+                                onDragEnd = {
+                                    val step = DockSwipe.step(
+                                        position = position,
+                                        count = total,
+                                        dx = travelled,
+                                        velocityX = tracker.calculateVelocity().x,
+                                        widthPx = cardWidth,
+                                    )
+                                    dragging = false
+                                    dragX = 0f
+                                    if (step != 0) onStep(step)
+                                },
+                                onHorizontalDrag = { change, amount ->
+                                    change.consume()
+                                    travelled += amount
+                                    // The ends resist instead of refusing, the same language the tab
+                                    // swipe uses: the card still moves a little, which is what says
+                                    // "nothing there".
+                                    val atEdge = (position == 0 && amount > 0) ||
+                                        (position == total - 1 && amount < 0)
+                                    val limit = cardWidth * 0.35f
+                                    dragX = (dragX + amount * if (atEdge) 0.18f else 1f)
+                                        .coerceIn(-limit, limit)
+                                },
                             )
                         },
-                        label = "dock-status",
-                    ) { state ->
-                        Text(
-                            statusLine(item, state, shownPercent),
-                            style = FloatingBar.labelStyle(MaterialTheme.typography.bodySmall, fontScale),
-                            color = if (ready) scheme.primary else scheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    DockThumb(item = item, done = ready)
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                item.title,
+                                style = FloatingBar.legibleStyle(MaterialTheme.typography.titleSmall, fontScale),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                            if (total > 1) {
+                                Spacer(Modifier.width(6.dp))
+                                MoreBadge(total - 1)
+                            }
+                        }
+                        // The sentence swaps rather than being repainted: "Downloading" becoming
+                        // "Ready to install" is the engine finishing something, and it should look like it.
+                        AnimatedContent(
+                            // Keyed on the *state*, never on the sentence. The sentence carries a
+                            // percentage that moves several times a second, and a crossfade restarted on
+                            // every tick leaves the line permanently half-faded — measured on the handset
+                            // as text that looked washed out for the whole download.
+                            targetState = item.state,
+                            transitionSpec = {
+                                ContentTransform(
+                                    targetContentEnter = fadeIn(PlayMotion.spec(PlayMotion.SHORT, EmphasizedEasing)),
+                                    initialContentExit = fadeOut(PlayMotion.spec(PlayMotion.SHORT, StandardAccelerateEasing)),
+                                    sizeTransform = SizeTransform(clip = false),
+                                )
+                            },
+                            label = "dock-status",
+                        ) { state ->
+                            Text(
+                                statusLine(item, state, shownPercent),
+                                style = FloatingBar.legibleStyle(MaterialTheme.typography.bodySmall, fontScale),
+                                color = if (ready) scheme.primary else scheme.onSurface.copy(alpha = 0.88f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
                 Spacer(Modifier.width(8.dp))
@@ -392,103 +555,11 @@ internal data class DockFillTone(
 internal fun dockFillTone(state: DownloadState, done: Boolean): DockFillTone = when {
     done -> DockFillTone(start = 0.34f, end = 0.34f, track = 0.38f, muted = false, solid = true)
     state == DownloadState.DOWNLOADING || state == DownloadState.VERIFYING ->
-        DockFillTone(start = 0.22f, end = 0.40f, track = 0.38f, muted = false, solid = false)
+        DockFillTone(start = 0.28f, end = 0.48f, track = 0.38f, muted = false, solid = false)
     // Paused, queued, or a row that has not started: the bytes that landed stay drawn, but in a grey
     // that says "stopped" — a paused card still wearing the moving gradient reads as a download that
     // froze, which is exactly what it is not.
     else -> DockFillTone(start = 0.16f, end = 0.20f, track = 0.38f, muted = true, solid = true)
-}
-
-@Composable
-private fun ProgressWash(
-    fraction: Float,
-    state: DownloadState,
-    done: Boolean,
-    shine: Float,
-    modifier: Modifier = Modifier,
-) {
-    val scheme = MaterialTheme.colorScheme
-    val tone = remember(state, done) { dockFillTone(state, done) }
-    val moving = state == DownloadState.DOWNLOADING || state == DownloadState.VERIFYING
-    // Both gradients are pictures, not per-frame state: the wash is two colours across the card and
-    // the shine is one white band. The band moves by translating the canvas, not by rebuilding the
-    // gradient with a new start and end sixty times a second.
-    // Strength is deliberate: a 12 % tint over a dark card read as "slightly coloured card", not as
-    // a meter. These alphas still leave both lines past 4.5:1 against the wash, but the filled region
-    // is now unmistakably a region — which is the whole point of painting the card instead of a strip.
-    val wash = remember(tone, scheme.primary, scheme.tertiary, scheme.onSurfaceVariant) {
-        Brush.horizontalGradient(
-            when {
-                tone.muted -> listOf(
-                    scheme.onSurfaceVariant.copy(alpha = tone.start),
-                    scheme.onSurfaceVariant.copy(alpha = tone.end),
-                )
-                tone.solid -> listOf(
-                    scheme.primary.copy(alpha = tone.start),
-                    scheme.primary.copy(alpha = tone.end),
-                )
-                else -> listOf(
-                    scheme.primary.copy(alpha = tone.start),
-                    scheme.tertiary.copy(alpha = tone.end),
-                )
-            },
-        )
-    }
-    // The part of the card the bytes have not reached yet. Without it a 30 % download is a card with
-    // a coloured left third and no visible end to the fill — the track is what makes the boundary
-    // legible at a glance from across the room.
-    val track = scheme.surfaceVariant.copy(alpha = tone.track)
-    val sheen = remember {
-        Brush.horizontalGradient(
-            listOf(Color.Transparent, Color.White.copy(alpha = 0.10f), Color.Transparent),
-        )
-    }
-    Canvas(modifier) {
-        val filled = dockFillWidth(size.width, fraction)
-        // Always laid down, even at 0 %: a queued row still shows where the fill will arrive.
-        drawRect(color = track, size = size)
-        if (filled <= 0f) return@Canvas
-        // Laid down at the card's full width and clipped: a brush handed a new size on every progress
-        // tick rebuilds its shader, and this one is repainted sixty times a second. Clipping the whole
-        // card's width rather than a width-sized rect also keeps the gradient's colour at the edge
-        // constant instead of re-stretching it on every tick.
-        clipRect(right = filled) {
-            drawRect(brush = wash, size = size)
-        }
-        if (moving && PlayMotion.enabled) {
-            clipRect(right = filled) {
-                val band = size.width * 0.35f
-                val start = (size.width + band) * (shine / 360f) - band
-                translate(left = start) {
-                    drawRect(brush = sheen, size = Size(band, size.height))
-                }
-            }
-        }
-        // One hairline at the byte the transfer has reached: a 12 % wash on its own is a tinted card,
-        // and the edge is what makes it read as a position rather than as a colour.
-        // Embers climbing the fill while bytes move: three sparks riding the same phase as the
-        // ring's shine, so the card and the icon look lit by one source rather than two effects.
-        if (moving && PlayMotion.enabled) {
-            val spark = 1.7.dp.toPx()
-            for (i in 0 until 3) {
-                val phase = ((shine / 360f) + i / 3f) % 1f
-                drawCircle(
-                    color = scheme.tertiary.copy(alpha = (1f - phase) * 0.55f),
-                    radius = spark * (0.55f + phase * 0.75f),
-                    center = Offset(
-                        x = filled - 5.dp.toPx() - phase * 7.dp.toPx(),
-                        y = size.height * (1f - phase),
-                    ),
-                )
-            }
-        }
-        val edge = 1.5.dp.toPx()
-        drawRect(
-            color = if (tone.solid) scheme.primary else if (tone.muted) scheme.outline else scheme.tertiary,
-            topLeft = Offset(filled - edge / 2f, 0f),
-            size = Size(edge, size.height),
-        )
-    }
 }
 
 /** Pause, resume, install or allow — one slot, one control, morphed in place. */
@@ -548,19 +619,19 @@ private fun DockControlButton(control: DockControl, onToggle: () -> Unit, onInst
     }
 }
 
-/** The highlight's angle, in degrees, shared by the ring and the bar. */
+/** The meter's travelling phase, 0..1 over 1600 ms, shared by the dock and the settings preview. */
 @Composable
-private fun rememberDockShine(): Float {
+internal fun rememberDockPhase(): Float {
     if (!PlayMotion.enabled) return 0f
-    val transition = rememberInfiniteTransition(label = "dock-shine")
+    val transition = rememberInfiniteTransition(label = "dock-phase")
     return transition.animateFloat(
         initialValue = 0f,
-        targetValue = 360f,
+        targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(1600, easing = LinearEasing),
             repeatMode = RepeatMode.Restart,
         ),
-        label = "dock-shine-angle",
+        label = "dock-phase-value",
     ).value
 }
 
@@ -589,4 +660,112 @@ private fun statusLine(item: DownloadItem, state: DownloadState, percent: Int): 
     DownloadState.INSTALLED -> stringResource(R.string.dl_state_installed)
     DownloadState.FAILED -> stringResource(R.string.dl_state_failed)
     DownloadState.CANCELED -> stringResource(R.string.dl_state_canceled)
+}
+
+/**
+ * The list behind a long press on the dock: every row the card can show, in its own order.
+ *
+ * The panel is a single card and a queue can be longer than the eye can swipe through without
+ * knowing what is there. This is the index for it: the same [dockCandidates] the swipe walks, each
+ * row carrying the sentence it would carry in the queue, and a tap opens that download's page.
+ *
+ * Drawn as a surface above the panel, at the panel's own width, rather than as a modal sheet: it is
+ * the bar's own menu, so it grows out of the bar instead of covering the page like another window.
+ */
+@Composable
+internal fun DownloadCatalogue(
+    items: List<DownloadItem>,
+    onOpen: (String) -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shadowElevation = 12.dp,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+            Row(
+                Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.dock_catalogue_title),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        stringResource(R.string.dock_catalogue_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                TextButton(
+                    onClick = onDismiss,
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.size(36.dp),
+                ) {
+                    GlyphIcon(
+                        Glyph.Close,
+                        size = 14.dp,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        label = stringResource(R.string.action_close),
+                    )
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            // A queue is short enough to lay out by hand, and a plain scrolling Column wraps its
+            // content: a LazyColumn would claim the full cap for two rows. The cap keeps the menu
+            // below the top of the page at any text size.
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 360.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                items.forEach { item ->
+                    CatalogueRow(item = item, onClick = { onOpen(item.id) })
+                }
+            }
+        }
+    }
+}
+
+/** One line of the catalogue: the face, the name, and what the queue row would say about it. */
+@Composable
+private fun CatalogueRow(item: DownloadItem, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .playClickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ArtImage(url = item.iconUrl, title = item.title, modifier = Modifier.size(40.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                item.title,
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                statusText(downloadRowStatus(item)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.width(4.dp))
+        GlyphIcon(
+            Glyph.ChevronRight,
+            size = 18.dp,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }

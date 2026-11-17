@@ -3,6 +3,7 @@ package dev.aurastore.store.ui.feed
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,10 +29,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -51,7 +57,6 @@ import dev.aurastore.store.data.sources.SourceHub
 import dev.aurastore.store.data.sources.SourceId
 import dev.aurastore.store.data.sources.SourceShelf
 import dev.aurastore.store.data.sources.Sources
-import dev.aurastore.store.download.DownloadEngine
 import dev.aurastore.store.ui.AppRow
 import dev.aurastore.store.ui.LocalNavBarInset
 import dev.aurastore.store.ui.HeroCard
@@ -62,6 +67,7 @@ import dev.aurastore.store.ui.ScrollToTopOnRetap
 import dev.aurastore.store.ui.SectionHeader
 import dev.aurastore.store.ui.StateMessage
 import dev.aurastore.store.ui.StatusLine
+import dev.aurastore.store.ui.SwipeStep
 import dev.aurastore.store.ui.statusText
 import dev.aurastore.store.ui.playEnter
 import dev.aurastore.store.ui.rememberStoreActions
@@ -748,6 +754,8 @@ fun FeedScreen(
     modifier: Modifier = Modifier,
     /** Opens the category screen (`0` for the picker of every category). */
     onOpenCategory: (Long) -> Unit = {},
+    /** Opens one source app's own page from the Browse shelves. */
+    onOpenSourceApp: (SourceApp) -> Unit = {},
     refreshKey: Int = 0,
     /** Bumped by the shell when the tab already showing is tapped again. */
     scrollTopKey: Int = 0,
@@ -755,7 +763,6 @@ fun FeedScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val installs by AppState.installs.collectAsStateWithLifecycle()
-    val downloads by DownloadEngine.items.collectAsStateWithLifecycle()
     val enabledSources by Settings.sources.collectAsStateWithLifecycle()
     val servers = remember(enabledSources) { Sources.enabled(enabledSources) }
     val actions = rememberStoreActions()
@@ -772,6 +779,44 @@ fun FeedScreen(
     }
     ScrollToTopOnRetap(scrollTopKey, listState)
 
+    // The server strip is the swipe here, not the app tab. Browse holds one tab per site, so a
+    // horizontal drag across the page body moves to the next or the previous site: a left swipe asks
+    // for the one to the right, the way a pager's next page arrives. The chip rails inside the list
+    // are horizontal scrollers of their own and take the drag first, so this only answers a swipe
+    // that starts on the content. The width is the page's own, measured, never the display's.
+    var pageWidth by remember { mutableFloatStateOf(0f) }
+    val serverIndex = servers.indexOfFirst { it.id == state.server }
+    val serverSwipe = if (kind == FeedKind.BROWSE && servers.size > 1 && serverIndex >= 0) {
+        Modifier
+            .onSizeChanged { pageWidth = it.width.toFloat() }
+            .pointerInput(servers, serverIndex, pageWidth) {
+                val tracker = VelocityTracker()
+                var travelled = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = {
+                        travelled = 0f
+                        tracker.resetTracking()
+                    },
+                    onDragEnd = {
+                        val target = SwipeStep.target(
+                            tab = serverIndex,
+                            lastIndex = servers.lastIndex,
+                            dx = travelled,
+                            velocityX = tracker.calculateVelocity().x,
+                            widthPx = pageWidth,
+                        )
+                        if (target != serverIndex) viewModel.selectServer(servers[target].id)
+                    },
+                    onHorizontalDrag = { change, amount ->
+                        change.consume()
+                        travelled += amount
+                    },
+                )
+            }
+    } else {
+        Modifier
+    }
+
     PullToRefreshBox(
         isRefreshing = if (kind == FeedKind.BROWSE && state.server != SourceId.LITEAPKS) {
             state.serverLoading
@@ -781,7 +826,7 @@ fun FeedScreen(
         onRefresh = { viewModel.refresh() },
         modifier = modifier,
     ) {
-    LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 28.dp + LocalNavBarInset.current)) {
+    LazyColumn(state = listState, modifier = Modifier.fillMaxSize().then(serverSwipe), contentPadding = PaddingValues(bottom = 28.dp + LocalNavBarInset.current)) {
         item {
             Text(
                 kind.title,
@@ -906,7 +951,7 @@ fun FeedScreen(
                     modifier = Modifier.playEnter(state.generation, position),
                     rank = position + 1,
                     onClick = { onOpenPost(post.id) },
-                    action = actions.actionFor(post, installs, downloads),
+                    action = actions.liveAction(post, installs),
                     onAction = { actions.runPrimary(post) },
                 )
             }
@@ -926,7 +971,7 @@ fun FeedScreen(
                 state = state,
                 onSelectCategory = viewModel::selectServerCategory,
                 onHome = viewModel::showServerHome,
-                onPick = { app -> actions.download(app) },
+                onPick = onOpenSourceApp,
                 onRetry = viewModel::retryServer,
                 onLoadMore = viewModel::loadMoreServer,
             )

@@ -31,6 +31,7 @@ import dev.aurastore.store.data.sources.SourceApp
 import dev.aurastore.store.data.sources.SourceCategory
 import dev.aurastore.store.data.sources.SourceShelf
 import dev.aurastore.store.theme.ArtShape
+import dev.aurastore.store.ui.ArtImage
 import dev.aurastore.store.ui.LoadingRail
 import dev.aurastore.store.ui.PagingFooter
 import dev.aurastore.store.ui.PlayChip
@@ -217,17 +218,11 @@ private fun SourceShelfRow(shelf: SourceShelf, onPick: (SourceApp) -> Unit) {
 @Composable
 private fun SourceRailCard(app: SourceApp, onPick: () -> Unit) {
     Column(Modifier.width(120.dp).playClickable(onClick = onPick)) {
-        Box(
-            Modifier.fillMaxWidth().aspectRatio(1f).clip(ArtShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-        ) {
-            AsyncImage(
-                model = app.iconUrl,
-                contentDescription = app.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
+        ArtImage(
+            url = app.iconUrl,
+            title = app.title,
+            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+        )
         Spacer(Modifier.height(8.dp))
         Text(
             app.title,
@@ -251,17 +246,11 @@ private fun SourceRailCard(app: SourceApp, onPick: () -> Unit) {
 @Composable
 private fun SourceGridCard(app: SourceApp, onPick: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.playClickable(onClick = onPick)) {
-        Box(
-            Modifier.fillMaxWidth().aspectRatio(1f).clip(ArtShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-        ) {
-            AsyncImage(
-                model = app.iconUrl,
-                contentDescription = app.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
+        ArtImage(
+            url = app.iconUrl,
+            title = app.title,
+            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+        )
         Spacer(Modifier.height(6.dp))
         Text(
             app.title,

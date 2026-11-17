@@ -1,16 +1,5 @@
 package dev.aurastore.store.ui.source
 
-import android.content.Intent
-import androidx.core.net.toUri
-import android.widget.Toast
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.ContentTransform
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,8 +31,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,19 +41,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.aurastore.store.R
-import coil3.compose.AsyncImage
 import dev.aurastore.store.data.Settings
 import dev.aurastore.store.data.sources.SourceApp
 import dev.aurastore.store.data.sources.SourceCategory
-import dev.aurastore.store.data.sources.SourceFile
 import dev.aurastore.store.data.sources.SourceHub
 import dev.aurastore.store.data.sources.SourceId
 import dev.aurastore.store.data.sources.Sources
-import dev.aurastore.store.theme.ArtShape
-import dev.aurastore.store.theme.EmphasizedDecelerateEasing
-import dev.aurastore.store.theme.EmphasizedEasing
-import dev.aurastore.store.theme.PlayMotion
-import dev.aurastore.store.theme.StandardAccelerateEasing
+import dev.aurastore.store.ui.ArtImage
 import dev.aurastore.store.ui.Glyph
 import dev.aurastore.store.ui.LocalNavBarInset
 import dev.aurastore.store.ui.GlyphIcon
@@ -99,10 +80,6 @@ data class SourceState(
     val searching: Boolean = false,
     val results: List<SourceApp>? = null,
     val error: String? = null,
-    val openKey: String? = null,
-    val loadingFilesFor: String? = null,
-    val files: Map<String, List<SourceFile>> = emptyMap(),
-    val fileError: Map<String, String> = emptyMap(),
     /** The source's own newest apps, read from the source rather than from a term. */
     val latest: List<SourceApp> = emptyList(),
     /** The source's own categories, in the source's own order. */
@@ -138,8 +115,6 @@ class SourceViewModel(initial: SourceId, initialQuery: String) : ViewModel() {
                 source = id,
                 results = null,
                 error = null,
-                files = emptyMap(),
-                openKey = null,
                 latest = emptyList(),
                 categories = emptyList(),
                 selectedCategory = null,
@@ -219,10 +194,6 @@ class SourceViewModel(initial: SourceId, initialQuery: String) : ViewModel() {
                     searching = false,
                     results = null,
                     error = null,
-                    openKey = null,
-                    loadingFilesFor = null,
-                    files = emptyMap(),
-                    fileError = emptyMap(),
                 )
             }
         }
@@ -231,7 +202,7 @@ class SourceViewModel(initial: SourceId, initialQuery: String) : ViewModel() {
     fun search(term: String = _state.value.query) {
         if (term.isBlank()) return
         searchJob?.cancel()
-        _state.update { it.copy(query = term, searching = true, error = null, results = null, files = emptyMap()) }
+        _state.update { it.copy(query = term, searching = true, error = null, results = null) }
         searchJob = viewModelScope.launch {
             val source = Sources.byId(_state.value.source)
             // The adapters parse HTML over a blocking socket, so they must not run on the main thread.
@@ -263,39 +234,6 @@ class SourceViewModel(initial: SourceId, initialQuery: String) : ViewModel() {
         searchJob = null
         _state.update { it.copy(query = "", searching = false, results = null, error = null) }
     }
-
-    /** Loads one app's files the first time it is opened, and remembers them. */
-    fun toggleFiles(app: SourceApp) {
-        val key = app.key
-        if (_state.value.openKey == key) {
-            _state.update { it.copy(openKey = null) }
-            return
-        }
-        _state.update { it.copy(openKey = key) }
-        if (_state.value.files.containsKey(key)) return
-        _state.update { it.copy(loadingFilesFor = key) }
-        viewModelScope.launch {
-            val source = Sources.byId(app.source)
-            val outcome = runCatching { withContext(Dispatchers.IO) { source.files(app) } }
-            _state.update { current ->
-                outcome.fold(
-                    onSuccess = { list ->
-                        current.copy(
-                            loadingFilesFor = null,
-                            files = current.files + (key to list),
-                            fileError = current.fileError - key,
-                        )
-                    },
-                    onFailure = { e ->
-                        current.copy(
-                            loadingFilesFor = null,
-                            fileError = current.fileError + (key to describe(e).orEmpty()),
-                        )
-                    },
-                )
-            }
-        }
-    }
 }
 
 @Composable
@@ -303,17 +241,16 @@ fun SourceScreen(
     initialSource: SourceId,
     initialQuery: String,
     /** The category the route named, when the page was opened on one. */
-    initialCategory: String? = null,
+    initialCategory: String?,
     onBack: () -> Unit,
-    onOpenCataloguePost: (Long) -> Unit,
+    /** Opens the app's own page: description, screenshots and its files. */
+    onOpenApp: (SourceApp) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SourceViewModel = viewModel(key = "source-${initialSource.name}") {
         SourceViewModel(initialSource, initialQuery)
     },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    Settings.load(context)
     val enabled by Settings.sources.collectAsStateWithLifecycle()
     val sources = Sources.enabled(enabled)
 
@@ -479,32 +416,10 @@ fun SourceScreen(
                         )
                     }
                     itemsIndexed(results, key = { _, app -> app.key }) { position, app ->
-                        // Resolved in composition rather than in the click callback, so a configuration
-                        // change redraws the line instead of toasting the previous locale's words.
-                        val queued = stringResource(R.string.src_downloading, app.title, app.source.label)
                         SourceAppRow(
                             app = app,
                             modifier = Modifier.playEnter(state.generation, position),
-                            open = state.openKey == app.key,
-                            loadingFiles = state.loadingFilesFor == app.key,
-                            files = state.files[app.key],
-                            fileError = state.fileError[app.key],
-                            onToggle = { viewModel.toggleFiles(app) },
-                            onOpenPage = {
-                                app.pageUrl?.let { url ->
-                                    runCatching {
-                                        context.startActivity(
-                                            Intent(Intent.ACTION_VIEW, url.toUri())
-                                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                                        )
-                                    }
-                                }
-                            },
-                            onOpenInApp = app.cataloguePostId?.let { postId -> { onOpenCataloguePost(postId) } },
-                            onDownload = { file ->
-                                enqueueSourceFile(context, app, file)
-                                Toast.makeText(context, queued, Toast.LENGTH_SHORT).show()
-                            },
+                            onClick = { onOpenApp(app) },
                         )
                     }
                 }
@@ -550,30 +465,10 @@ fun SourceScreen(
                     )
                 }
                 itemsIndexed(shelf) { position, app ->
-                    val queued = stringResource(R.string.src_downloading, app.title, app.source.label)
                     SourceAppRow(
                         app = app,
                         modifier = Modifier.playEnter(state.generation, position),
-                        open = state.openKey == app.key,
-                        loadingFiles = state.loadingFilesFor == app.key,
-                        files = state.files[app.key],
-                        fileError = state.fileError[app.key],
-                        onToggle = { viewModel.toggleFiles(app) },
-                        onOpenPage = {
-                            app.pageUrl?.let { url ->
-                                runCatching {
-                                    context.startActivity(
-                                        Intent(Intent.ACTION_VIEW, url.toUri())
-                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                                    )
-                                }
-                            }
-                        },
-                        onOpenInApp = app.cataloguePostId?.let { postId -> { onOpenCataloguePost(postId) } },
-                        onDownload = { file ->
-                            enqueueSourceFile(context, app, file)
-                            Toast.makeText(context, queued, Toast.LENGTH_SHORT).show()
-                        },
+                        onClick = { onOpenApp(app) },
                     )
                 }
             }
@@ -584,143 +479,40 @@ fun SourceScreen(
 @Composable
 private fun SourceAppRow(
     app: SourceApp,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    open: Boolean,
-    loadingFiles: Boolean,
-    files: List<SourceFile>?,
-    fileError: String?,
-    onToggle: () -> Unit,
-    onOpenPage: () -> Unit,
-    onOpenInApp: (() -> Unit)?,
-    onDownload: (SourceFile) -> Unit,
 ) {
-    Column(modifier.fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth().playClickable(onClick = onToggle)
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                Modifier.size(52.dp).clip(ArtShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            ) {
-                AsyncImage(
-                    model = app.iconUrl,
-                    contentDescription = app.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(app.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                val meta = listOfNotNull(app.version, app.size, app.subtitle).joinToString(" · ")
-                if (meta.isNotBlank()) {
-                    Text(
-                        meta,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+    Row(
+        modifier.fillMaxWidth().playClickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ArtImage(
+            url = app.iconUrl,
+            title = app.title,
+            modifier = Modifier.size(52.dp),
+        )
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(app.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            val meta = listOfNotNull(app.version, app.size, app.subtitle).joinToString(" · ")
+            if (meta.isNotBlank()) {
                 Text(
-                    app.source.label,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            // The word on the control is the state, so it morphs rather than being repainted.
-            AnimatedContent(
-                targetState = open,
-                transitionSpec = {
-                    ContentTransform(
-                        targetContentEnter = fadeIn(PlayMotion.spec(PlayMotion.SHORT, EmphasizedEasing)),
-                        initialContentExit = fadeOut(PlayMotion.spec(PlayMotion.SHORT, StandardAccelerateEasing)),
-                    )
-                },
-                label = "files-toggle-label",
-            ) { expanded ->
-                TextButton(onClick = onToggle) {
-                    Text(stringResource(if (expanded) R.string.src_hide_files else R.string.src_files))
-                }
-            }
-        }
-
-        // The disclosure opens rather than appearing: Play slides a row's files out from under its
-        // title, and closing it takes them back up rather than deleting them.
-        AnimatedVisibility(
-            visible = open,
-            enter = fadeIn(PlayMotion.spec(PlayMotion.MEDIUM, EmphasizedDecelerateEasing)) +
-                slideInVertically(PlayMotion.spec(PlayMotion.MEDIUM, EmphasizedDecelerateEasing)) { it / 4 },
-            exit = fadeOut(PlayMotion.spec(PlayMotion.SHORT, StandardAccelerateEasing)) +
-                slideOutVertically(PlayMotion.spec(PlayMotion.SHORT, StandardAccelerateEasing)) { it / 4 },
-        ) {
-            when {
-                loadingFiles -> Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        stringResource(R.string.src_resolving),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-
-                fileError != null -> Text(
-                    fileError.ifBlank { stringResource(R.string.src_file_list_failed) },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                )
-
-                files != null && files.isEmpty() -> Text(
-                    stringResource(R.string.src_no_file),
+                    meta,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
-
-                files != null -> files.forEach { file ->
-                    Row(
-                        Modifier.fillMaxWidth().padding(start = 24.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(file.label, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            val detail = listOfNotNull(file.size, file.note, file.sha256?.let { "sha-256 ${it.take(12)}…" })
-                                .joinToString(" · ")
-                            if (detail.isNotBlank()) {
-                                Text(
-                                    detail,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        TextButton(onClick = { onDownload(file) }) {
-                            Text(stringResource(R.string.action_download))
-                        }
-                    }
-                }
             }
-
-            Row(
-                Modifier.fillMaxWidth().padding(start = 24.dp, end = 16.dp, bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                TextButton(onClick = onOpenPage) { Text(stringResource(R.string.src_open_page)) }
-                onOpenInApp?.let { open ->
-                    TextButton(onClick = open) { Text(stringResource(R.string.src_app_page)) }
-                }
-            }
+            Text(
+                app.source.label,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
         }
+        Spacer(Modifier.width(8.dp))
+        GlyphIcon(Glyph.ChevronRight, size = 20.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

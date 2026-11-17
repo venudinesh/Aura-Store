@@ -33,9 +33,9 @@ import androidx.compose.ui.unit.dp
  * unit space and scaled to the requested size.
  */
 enum class Glyph {
-    Home, Search, Grid, Star, ChevronRight, ChevronLeft, Back, Check, Close, More,
+    Home, Search, Grid, Star, Heart, ChevronRight, ChevronLeft, Back, Check, Close, More,
     Download, Pause, Play, Person, Update, Shield, Brand, Info, Share, ArrowDown, Tick,
-    Gamepad, Library, Trash, Copy,
+    Gamepad, Library, Trash, Copy, Backdrop,
 }
 
 /**
@@ -182,6 +182,23 @@ private fun DrawScope.drawGlyph(glyph: Glyph, tint: Color, fill: Float, cutout: 
         }
 
         Glyph.Star -> drawPath(starPath(w(1f), h(1f)), color = tint)
+
+        Glyph.Heart -> {
+            // One path for both states: the same heart is filled when the app is wished and left as
+            // an outline when it is not, so the row's ink does not change shape when it is tapped.
+            val heart = Path().apply {
+                moveTo(w(0.5f), h(0.86f))
+                cubicTo(w(0.14f), h(0.6f), w(0.07f), h(0.34f), w(0.22f), h(0.2f))
+                cubicTo(w(0.34f), h(0.09f), w(0.47f), h(0.16f), w(0.5f), h(0.28f))
+                cubicTo(w(0.53f), h(0.16f), w(0.66f), h(0.09f), w(0.78f), h(0.2f))
+                cubicTo(w(0.93f), h(0.34f), w(0.86f), h(0.6f), w(0.5f), h(0.86f))
+                close()
+            }
+            if (fill > 0.01f) {
+                drawPath(heart, color = tint.copy(alpha = tint.alpha * fill))
+            }
+            drawPath(heart, color = tint, style = strokeStyle)
+        }
 
         Glyph.ChevronRight -> drawPath(
             Path().apply { moveTo(w(0.38f), h(0.22f)); lineTo(w(0.64f), h(0.5f)); lineTo(w(0.38f), h(0.78f)) },
@@ -413,6 +430,29 @@ private fun DrawScope.drawGlyph(glyph: Glyph, tint: Color, fill: Float, cutout: 
             drawPath(canBody, color = tint, style = strokeStyle)
             drawLine(tint, p(0.44f, 0.44f), p(0.44f, 0.72f), stroke * 0.85f, StrokeCap.Round)
             drawLine(tint, p(0.56f, 0.44f), p(0.56f, 0.72f), stroke * 0.85f, StrokeCap.Round)
+        }
+
+        // A framed landscape: the wallpaper's own picture, with a sun and two hills.
+        Glyph.Backdrop -> {
+            drawRoundRect(
+                tint,
+                topLeft = p(0.12f, 0.18f),
+                size = Size(w(0.76f), h(0.64f)),
+                cornerRadius = CornerRadius(w(0.12f), w(0.12f)),
+                style = strokeStyle,
+            )
+            drawCircle(tint, radius = w(0.055f), center = p(0.66f, 0.36f))
+            drawPath(
+                Path().apply {
+                    moveTo(w(0.20f), h(0.72f))
+                    lineTo(w(0.40f), h(0.50f))
+                    lineTo(w(0.54f), h(0.65f))
+                    lineTo(w(0.64f), h(0.56f))
+                    lineTo(w(0.80f), h(0.72f))
+                },
+                color = tint,
+                style = strokeStyle,
+            )
         }
 
         Glyph.Copy -> {
