@@ -36,16 +36,6 @@ uses that root for one thing only: putting an app's data folder (`Android/obb`) 
 expects it, which the system otherwise refuses to do for anyone. Say no at the prompt and the app
 keeps working. It just cannot place that folder for you.
 
-## What it looks like
-
-| The shelves | An app page |
-|---|---|
-| <img src="media/feed.jpg" width="260" alt="The Games tab"> | <img src="media/app-page.jpg" width="260" alt="An app's page"> |
-
-| The other catalogues, in Browse | Where the download comes from |
-|---|---|
-| <img src="media/browse-sources.jpg" width="260" alt="Other catalogues in the Browse tab"> | <img src="media/source-picker.jpg" width="260" alt="The sheet that asks for a source"> |
-
 ## What you can do
 
 - **Browse.** Five shelves along the bottom. Browse carries a tab per server. Every tab except the
@@ -83,14 +73,14 @@ keeps working. It just cannot place that folder for you.
 Aura Store hosts nothing. It does not mirror or upload a single file. It reads the servers below and
 shows you what they return, and each of them keeps the ownership of its content and its trademarks.
 
-| Catalogue | What it is | Where the files live |
-|---|---|---|
-| LiteAPKs | The catalogue this app is built around | download.liteapks.dev, gp4.liteapks.com |
-| 9MOD | WordPress catalogue with nonce-minted links | gp4.9mod.com |
-| 5play | DLE catalogue with signed files | a Cloudflare R2 bucket |
-| GetModsAPK | Laravel catalogue with mirror pages | files.5modapk.com |
-| AN1 | Modded games with direct file links | files.an1.co |
-| ApkVision | WordPress with its own AJAX search | dl.apkvision.org |
+| Catalogue | What it is |
+|---|---|
+| LiteAPKs | The catalogue this app is built around |
+| 9MOD | WordPress catalogue with nonce-minted links |
+| 5play | DLE catalogue with signed files |
+| GetModsAPK | Laravel catalogue with mirror pages |
+| AN1 | Modded games with direct file links |
+| ApkVision | WordPress with its own AJAX search |
 
 Each one is read in its own way: LiteAPKs through its JSON API, 9MOD and ApkVision through
 WordPress, 5play and AN1 through DLE, and GetModsAPK through Laravel.

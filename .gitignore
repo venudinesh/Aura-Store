@@ -190,6 +190,7 @@ desktop.ini
 # runs and backups from working sessions. The README keeps its own small set under /media/.
 /shots/
 /screenshots/
+/media/
 /logo/explore/
 /u*.xml
 /ui.xml
@@ -212,3 +213,10 @@ __pycache__/
 package.json
 package-lock.json
 node_modules/
+
+# ---------------------------------------------------------------- Pages captured from live sites and
+# pinned in the parser tests. They are third-party markup verbatim, so they carry whatever the site
+# embedded in them, Google API keys included, and a page saved today is not a page the repository
+# should republish. They stay on the machine that captured them; a clone without them skips the tests
+# that read them rather than failing.
+app/src/test/resources/fixtures/
