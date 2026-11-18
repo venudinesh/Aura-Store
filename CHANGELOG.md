@@ -3,6 +3,36 @@
 All notable changes to Aura Store. The format follows [Keep a Changelog](https://keepachangelog.com/),
 and the project uses `MAJOR.MINOR.PATCH` versions.
 
+## [1.7.0] - 2026-11-18
+
+### Added
+
+- **View all on every shelf and rail.** Each heading in Browse carries *View all*. The catalogue's
+  rails open the full list in the rail's own order, fifty a page, walking the same query the row was
+  made from. Every other server's rows lead to the site's own category, or to the source's whole
+  catalogue when the row is a hand-picked selection with no term behind it. A list with no chip of
+  its own is named by a heading above the grid.
+- **Thirty posters per anime in the Special pack.** All thirty-one anime open into a gallery of
+  thirty posters, 930 in all.
+- **Thirty-one animated frames.** One for each anime in the pack, sixty-nine frames in all.
+- **Posters can be deleted and brought back.** A hold takes a poster off the shelf and leaves a faded
+  tile with a download mark; tapping the mark pulls the original art back from the project's raw
+  files on GitHub. Both catalogues behave the same way.
+
+### Changed
+
+- **The You page holds one heartbeat.** Idle redraws fell from 219 frames in five seconds to 47.
+
+### Fixed
+
+- **A shelf that led to a list the site does not publish a chip for** now says which list it is
+  instead of showing an unlabelled grid.
+
+### Security
+
+- **The credential sweep reads the working tree as well as the index,** so a secret that is staged
+  and then changed is still named. Captured pages and screenshots are kept out of the repository.
+
 ## [1.6.0] - 2026-11-17
 
 ### Added

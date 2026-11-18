@@ -6,7 +6,7 @@
   **A phone shop for Android. It shows you what it checked before it hands you an app.**
 
   <p>
-    <a href="#get-the-app"><img alt="Aura Store 1.6.0" src="https://img.shields.io/badge/download-Aura%20Store%201.6.0-f6feb4?style=for-the-badge"></a>
+    <a href="#get-the-app"><img alt="Aura Store 1.7.0" src="https://img.shields.io/badge/download-Aura%20Store%201.7.0-f6feb4?style=for-the-badge"></a>
     <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.4-7f52ff?style=for-the-badge">
     <img alt="Android" src="https://img.shields.io/badge/Android-8.1%2B-3ddc84?style=for-the-badge">
     <img alt="Licence" src="https://img.shields.io/badge/licence-MIT-22a559?style=for-the-badge">
@@ -43,23 +43,26 @@ keeps working. It just cannot place that folder for you.
   headings and its order, with the version, size, mod note or rating each card prints. Under those
   rows is everything else the site lists, newest first, a page at a time as you scroll: the rows the
   site chose to feature are the top of the tab, not the end of it. A category opens the site's
-  two-column card grid, a page at a time.
+  two-column card grid, a page at a time. Every heading offers *View all*: the rail's own list in the
+  rail's own order, or the source's whole catalogue when the row is a hand-picked selection with no
+  term behind it.
 - **Search everywhere.** One search asks the catalogue and every other site at once. Each site that
   answers becomes a tab with its match count, and one tab is on screen at a time. A row from another
   site downloads from that site, without asking again.
 - **Choose where a file comes from.** A download asks first. It says which sites have the app and
   which do not, and it downloads from the one you pick. Settings has a default source, and the sheet
   opens there.
-- **Make the shop yours.** The You tab is a profile now: a picture from the set or from your gallery,
-  one of eight frames that turn with the page, and a cover drawn from four presets or cropped from a
-  photo. Five tabs sit under it: Overview, Screen time, Wishlist, Updates and Style. Screen time
-  counts the hours spent in games and apps installed from this store, once Android grants usage
-  access. The same picture and frame sit in the top bar on every screen.
+- **Make the shop yours.** The You tab is a profile now: a picture from the set, the Special pack's
+  thirty-one anime with thirty posters each, or your gallery; one of sixty-nine frames, thirty of them
+  turning around the faces of the pack; and a cover drawn from four presets or cropped from a photo.
+  Five tabs sit under it: Overview, Screen time, Wishlist, Updates and Style. Screen time counts the
+  hours spent in games and apps installed from this store, once Android grants usage access. The same
+  picture and frame sit in the top bar on every screen.
 - **Keep up with updates.** The You tab lists what you have installed and what is newer. Apps this
   store installed can update themselves. A notification names each app that has one, with the app's
   own icon and its version pair. Apps from elsewhere are matched back by their package name and wait
   for your tap.
-- **Update the store itself.** Settings shows the build as `1.6.0 (10600)` and has *Check now*. When
+- **Update the store itself.** Settings shows the build as `1.7.0 (10700)` and has *Check now*. When
   GitHub has a newer release, a banner under the brand bar names it and offers it without waiting for
   the next launch. The download shows its own bar, its percentage and its byte count, then checks the
   file against the published SHA-256 and hands it to Android's installer.
@@ -110,10 +113,11 @@ None of this makes a downloaded APK safe to run.
 ## Get the app
 
 [Releases](https://github.com/venudinesh/Aura-Store/releases) have their own page. Download
-`Aura-Store-v1.6.0.apk`, open it, and let Android install it.
+`Aura-Store-v1.7.0.apk`, open it, and let Android install it.
 
-1.6.0 carries the replacement project key. A 1.5.0 copy downloaded from this page is signed with the
-lost key, so Android refuses to install 1.6.0 over it. Uninstall 1.5.0 once, then install 1.6.0.
+1.7.0 carries the project key that 1.6.0 introduced. A 1.5.0 copy downloaded from this page is signed
+with the lost key, so Android refuses to install either over it. Uninstall 1.5.0 once, then install
+1.7.0.
 
 1. Open the downloaded file. Android asks whether your browser or file manager may install unknown
    apps. Allow it for that app, then tap Install.
