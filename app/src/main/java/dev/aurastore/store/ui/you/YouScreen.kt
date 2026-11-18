@@ -63,6 +63,7 @@ import dev.aurastore.store.data.AvatarStore
 import dev.aurastore.store.data.CUSTOM_AVATAR
 import dev.aurastore.store.data.CoverStore
 import dev.aurastore.store.data.CoverStyle
+import dev.aurastore.store.data.SpecialAnime
 import dev.aurastore.store.data.Settings
 import dev.aurastore.store.data.StoreUsage
 import dev.aurastore.store.data.StoreUsageEntry
@@ -103,6 +104,7 @@ import dev.aurastore.store.ui.profile.AvatarPicker
 import dev.aurastore.store.ui.profile.CoverArt
 import dev.aurastore.store.ui.profile.ImageCropDialog
 import dev.aurastore.store.ui.profile.ProfilePicture
+import dev.aurastore.store.ui.profile.rememberPhaseClock
 import dev.aurastore.store.ui.rememberStoreActions
 import dev.aurastore.store.ui.wishlist.EmptyWishlist
 import dev.aurastore.store.ui.wishlist.WishRow
@@ -143,6 +145,7 @@ fun YouScreen(
     val avatar by Settings.avatar.collectAsStateWithLifecycle()
     val frame by Settings.avatarFrame.collectAsStateWithLifecycle()
     val coverStyle by Settings.coverStyle.collectAsStateWithLifecycle()
+    val coverPoster by Settings.coverPoster.collectAsStateWithLifecycle()
     val coverCustom by Settings.coverCustom.collectAsStateWithLifecycle()
     val coverVersion by CoverStore.version.collectAsStateWithLifecycle()
     val coverPhoto = remember(coverCustom, coverVersion) {
@@ -227,6 +230,7 @@ fun YouScreen(
                 avatar = avatar,
                 frame = frame,
                 coverStyle = coverStyle,
+                coverPoster = coverPoster,
                 coverPhoto = coverPhoto,
                 onPicture = { pickerOpen = true },
                 onCustomise = { sectionIndex = ProfileSection.CUSTOMISE.ordinal },
@@ -522,9 +526,10 @@ fun YouScreen(
                     GroupCard {
                         CoverPicker(
                             style = coverStyle,
+                            poster = coverPoster,
                             custom = coverCustom,
                             photo = coverPhoto,
-                            onStyle = { Settings.setCoverStyle(context, it) },
+                            onStyle = { picked, index -> Settings.setCover(context, picked, index) },
                             onCustom = {
                                 if (coverPhoto != null) {
                                     Settings.setCustomCover(context)
@@ -613,6 +618,7 @@ private fun ProfileHero(
     avatar: String?,
     frame: AvatarFrame,
     coverStyle: CoverStyle,
+    coverPoster: Int,
     coverPhoto: Bitmap?,
     onPicture: () -> Unit,
     onCustomise: () -> Unit,
@@ -624,7 +630,12 @@ private fun ProfileHero(
                 .height(136.dp)
                 .clip(RoundedCornerShape(26.dp)),
         ) {
-            CoverArt(style = coverStyle, photo = coverPhoto, modifier = Modifier.fillMaxSize())
+            CoverArt(
+                style = coverStyle,
+                photo = coverPhoto,
+                poster = coverPoster,
+                modifier = Modifier.fillMaxSize(),
+            )
             // A floor under the avatar, so a pale cover cannot swallow the picture's edge.
             Box(
                 Modifier
@@ -914,6 +925,9 @@ private fun progressAction(item: DownloadItem): RowAction = when (item.state) {
 /** Eight rings, four to a row, each drawn around the picture the profile actually wears. */
 @Composable
 private fun FramePicker(current: AvatarFrame, choice: String?, onPick: (AvatarFrame) -> Unit) {
+    // One clock for the whole sheet. Thirty-eight transitions would be thirty-eight recompositions
+    // a frame, and a row of rings has no reason to disagree about the time.
+    val phase = rememberPhaseClock(animate = PlayMotion.enabled)
     Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
         AvatarFrame.entries.chunked(4).forEach { row ->
             Row(Modifier.fillMaxWidth()) {
@@ -939,7 +953,7 @@ private fun FramePicker(current: AvatarFrame, choice: String?, onPick: (AvatarFr
                                 ),
                             contentAlignment = Alignment.Center,
                         ) {
-                            ProfilePicture(choice = choice, size = 48.dp, frame = entry)
+                            ProfilePicture(choice = choice, size = 48.dp, frame = entry, phase = phase)
                         }
                         Text(
                             stringResource(entry.label),
@@ -960,18 +974,25 @@ private fun FramePicker(current: AvatarFrame, choice: String?, onPick: (AvatarFr
     }
 }
 
-/** Four drawn covers and the user's own photograph, in a two-column grid. */
+/** Drawn covers, the Special pack and the user's own photograph, in a two-column grid. */
 @Composable
 private fun CoverPicker(
     style: CoverStyle,
+    poster: Int,
     custom: Boolean,
     photo: Bitmap?,
-    onStyle: (CoverStyle) -> Unit,
+    onStyle: (CoverStyle, Int) -> Unit,
     onCustom: () -> Unit,
     onGallery: () -> Unit,
 ) {
+    // Which anime's gallery is open inside the card. The pack is thirty doors, each with thirty
+    // banners behind it: one tile per anime is the only list that stays readable at this size.
+    var openAnime by remember { mutableStateOf<SpecialAnime?>(null) }
     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        CoverStyle.entries.chunked(2).forEach { row ->
+        // The Special pack sits under its own header rather than as more drawn-looking tiles:
+        // a painted banner and a drawing are two kinds of cover, and the label says which is which.
+        val drawn = CoverStyle.entries.filterNot { it.special }
+        drawn.chunked(2).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { entry ->
                     CoverCell(
@@ -979,12 +1000,14 @@ private fun CoverPicker(
                         style = entry,
                         photo = null,
                         selected = !custom && entry == style,
-                        onClick = { onStyle(entry) },
+                        onClick = { onStyle(entry, 0) },
                         modifier = Modifier.weight(1f),
                     )
                 }
             }
         }
+        // The photo doors come before the pack: the last row of a long card sits against the gesture
+        // bar, and an action that can only be reached by a scroll at the very edge is half lost.
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (photo == null) {
                 // Nothing to draw yet: a slot waiting for the picker, not the House art wearing
@@ -1010,6 +1033,78 @@ private fun CoverPicker(
                 modifier = Modifier.weight(1f),
                 glyph = Glyph.Grid,
             )
+        }
+        Text(
+            stringResource(R.string.special_title),
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        val open = openAnime
+        if (open == null) {
+            Text(
+                stringResource(R.string.special_covers_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            // Three to a row: the names run long ("Fullmetal Alchemist"), and the tile is wide, so
+            // the third column is what fits without a two-line label.
+            SpecialAnime.entries.chunked(3).forEach { row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { anime ->
+                        val entry = CoverStyle.forAnime(anime)
+                        CoverCell(
+                            label = stringResource(anime.label),
+                            style = entry,
+                            photo = null,
+                            selected = !custom && entry == style,
+                            onClick = { openAnime = anime },
+                            modifier = Modifier.weight(1f),
+                            labelLines = 2,
+                        )
+                    }
+                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+        } else {
+            val entry = CoverStyle.forAnime(open)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .playClickable(onClick = { openAnime = null })
+                    .padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                GlyphIcon(Glyph.Back, size = 18.dp, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        stringResource(open.label),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        stringResource(R.string.special_covers_gallery),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            open.posters.toList().chunked(3).forEachIndexed { rowIndex, row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEachIndexed { column, _ ->
+                        val index = rowIndex * 3 + column
+                        CoverCell(
+                            label = "${index + 1}",
+                            style = entry,
+                            poster = index,
+                            photo = null,
+                            selected = !custom && entry == style && poster == index,
+                            onClick = { onStyle(entry, index) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
         }
     }
 }
@@ -1064,6 +1159,8 @@ private fun CoverCell(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    poster: Int = 0,
+    labelLines: Int = 1,
 ) {
     Column(
         modifier.playClickable(onClick = onClick),
@@ -1086,7 +1183,7 @@ private fun CoverCell(
                     },
                 ),
         ) {
-            CoverArt(style = style, photo = photo, modifier = Modifier.fillMaxSize())
+            CoverArt(style = style, photo = photo, poster = poster, modifier = Modifier.fillMaxSize())
             if (selected) {
                 Surface(
                     shape = CircleShape,
@@ -1111,7 +1208,7 @@ private fun CoverCell(
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
-            maxLines = 1,
+            maxLines = labelLines,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 4.dp),
         )

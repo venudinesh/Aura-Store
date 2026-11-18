@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import dev.aurastore.store.data.CoverStyle
 import kotlin.math.abs
 import kotlin.math.sin
@@ -22,16 +23,33 @@ import kotlin.math.sin
 /**
  * The cover behind the profile, drawn or photographed.
  *
- * The four presets are code, like the faces and the frames: one drawing follows the surface it is
- * given, from a 70 dp tile in the picker to the full-width hero, with no bitmap to keep in a density
- * folder. A photograph takes the same slot when the user cropped one, and is cropped again by the
- * layout rather than letterboxed.
+ * The presets are code, like the faces and the frames: one drawing follows the surface it is given,
+ * from a 70 dp tile in the picker to the full-width hero, with no bitmap to keep in a density folder.
+ * The Special pack and a photograph take the same slot when chosen, cropped by the layout rather
+ * than letterboxed.
  */
 @Composable
-fun CoverArt(style: CoverStyle, photo: Bitmap?, modifier: Modifier = Modifier) {
+fun CoverArt(
+    style: CoverStyle,
+    photo: Bitmap?,
+    modifier: Modifier = Modifier,
+    poster: Int = 0,
+) {
     if (photo != null) {
         Image(
             bitmap = photo.asImageBitmap(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = modifier.fillMaxSize(),
+        )
+        return
+    }
+    val art = style.poster(poster)
+    if (art != null) {
+        // A painted cover is a bitmap, and the slot is wide at every size it appears in, so the crop
+        // is the same in the 66 dp tile and behind the profile.
+        Image(
+            painter = painterResource(art),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = modifier.fillMaxSize(),
@@ -59,11 +77,14 @@ private val PaperShade = Color(0xFFD9CBB0)
 private val CoverInk = Color(0xFF16130F)
 
 private fun DrawScope.drawCoverStyle(style: CoverStyle) {
+    // The pack never arrives here: CoverArt draws its bitmap before asking for a canvas. The else is
+    // the compiler's proof of that, not a fallback with a picture of its own.
     when (style) {
         CoverStyle.HOUSE -> drawHouse()
         CoverStyle.AURORA -> drawAurora()
         CoverStyle.EMBER -> drawEmber()
         CoverStyle.INK -> drawInk()
+        else -> Unit
     }
 }
 

@@ -390,7 +390,7 @@
     <!-- Profile picture -->
     <string name="profile_photo">Change picture</string>
     <string name="profile_picker_title">Profile picture</string>
-    <string name="profile_picker_body">A game face from the set, or one of your own. Everything is cropped square.</string>
+    <string name="profile_picker_body">A game face, an anime portrait from the Special pack, or one of your own. Everything is cropped square.</string>
     <string name="profile_gallery">Choose from gallery</string>
     <string name="profile_default">Use the Aura mark</string>
     <string name="profile_crop_title">Crop photo</string>
@@ -416,7 +416,7 @@
     <string name="profile_frame_title">Frame</string>
     <string name="profile_frame_note">Worn wherever the picture appears.</string>
     <string name="profile_cover_title">Cover</string>
-    <string name="profile_cover_note">Drawn art or a photo, cropped wide.</string>
+    <string name="profile_cover_note">Drawn art, anime from the Special pack, or a photo, cropped wide.</string>
     <string name="profile_cover_custom">Your photo</string>
     <string name="profile_cover_gallery">Choose a photo</string>
     <string name="profile_cover_crop_title">Crop cover</string>
@@ -438,6 +438,36 @@
     <string name="frame_laurel">Laurel</string>
     <string name="frame_pulse">Pulse</string>
     <string name="frame_ember">Ember</string>
+    <string name="frame_comet">Comet</string>
+    <string name="frame_nova">Nova</string>
+    <string name="frame_halo">Halo</string>
+    <string name="frame_circuit">Circuit</string>
+    <string name="frame_sakura">Sakura</string>
+    <string name="frame_frost">Frost</string>
+    <string name="frame_inferno">Inferno</string>
+    <string name="frame_tide">Tide</string>
+    <string name="frame_storm">Storm</string>
+    <string name="frame_vortex">Vortex</string>
+    <string name="frame_prism">Prism</string>
+    <string name="frame_rune">Rune</string>
+    <string name="frame_starfall">Starfall</string>
+    <string name="frame_aurora">Aurora</string>
+    <string name="frame_serpent">Serpent</string>
+    <string name="frame_eclipse">Eclipse</string>
+    <string name="frame_echo">Echo</string>
+    <string name="frame_shards">Shards</string>
+    <string name="frame_twinkle">Twinkle</string>
+    <string name="frame_chain">Chain</string>
+    <string name="frame_compass">Compass</string>
+    <string name="frame_heartbeat">Heartbeat</string>
+    <string name="frame_cinder">Cinder</string>
+    <string name="frame_lotus">Lotus</string>
+    <string name="frame_hex">Hex</string>
+    <string name="frame_ripple">Ripple</string>
+    <string name="frame_blade">Blade</string>
+    <string name="frame_meteor">Meteor</string>
+    <string name="frame_quasar">Quasar</string>
+    <string name="frame_zenith">Zenith</string>
 
     <string name="cover_house">House</string>
     <string name="cover_house_note">Deep indigo, a gold line</string>
@@ -447,6 +477,43 @@
     <string name="cover_ember_note">Warm fire at the edge</string>
     <string name="cover_ink">Ink</string>
     <string name="cover_ink_note">Paper and a black nib</string>
+
+    <!-- The Special pack: painted anime art for the picture and the cover. -->
+    <string name="special_title">Special</string>
+    <string name="special_faces_note">Thirty anime, thirty posters each. Tap one to open its portraits.</string>
+    <string name="special_faces_gallery">Thirty portraits, cropped square. The one you tap is the picture.</string>
+    <string name="special_covers_note">Thirty anime, thirty posters each. Tap one to open its banners.</string>
+    <string name="special_covers_gallery">Thirty banners, cropped wide. The one you tap is the cover.</string>
+    <string name="special_1">Naruto</string>
+    <string name="special_2">One Piece</string>
+    <string name="special_3">Attack on Titan</string>
+    <string name="special_4">Demon Slayer</string>
+    <string name="special_5">Jujutsu Kaisen</string>
+    <string name="special_6">My Hero Academia</string>
+    <string name="special_7">Death Note</string>
+    <string name="special_8">Fullmetal Alchemist</string>
+    <string name="special_9">Dragon Ball Z</string>
+    <string name="special_10">Sword Art Online</string>
+    <string name="special_11">Tokyo Ghoul</string>
+    <string name="special_12">Chainsaw Man</string>
+    <string name="special_13">Spy x Family</string>
+    <string name="special_14">One Punch Man</string>
+    <string name="special_15">Hunter x Hunter</string>
+    <string name="special_16">Bleach</string>
+    <string name="special_17">Solo Leveling</string>
+    <string name="special_18">Frieren</string>
+    <string name="special_19">Evangelion</string>
+    <string name="special_20">Cowboy Bebop</string>
+    <string name="special_21">Sailor Moon</string>
+    <string name="special_22">Pokemon</string>
+    <string name="special_23">Spirited Away</string>
+    <string name="special_24">Your Name</string>
+    <string name="special_25">Vinland Saga</string>
+    <string name="special_26">Mob Psycho 100</string>
+    <string name="special_27">Black Clover</string>
+    <string name="special_28">Blue Lock</string>
+    <string name="special_29">Code Geass</string>
+    <string name="special_30">Dandadan</string>
 
     <!-- Download notifications -->
     <string name="channel_downloads">Downloads</string>

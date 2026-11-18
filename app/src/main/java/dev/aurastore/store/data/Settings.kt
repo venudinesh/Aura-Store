@@ -287,6 +287,7 @@ object Settings {
     private const val KEY_AVATAR = "profile_avatar"
     private const val KEY_AVATAR_FRAME = "profile_avatar_frame"
     private const val KEY_COVER_STYLE = "profile_cover_style"
+    private const val KEY_COVER_POSTER = "profile_cover_poster"
     private const val KEY_COVER_CUSTOM = "profile_cover_custom"
     private const val KEY_THEME_MODE = "theme_mode"
     private const val KEY_PALETTE = "palette"
@@ -417,9 +418,10 @@ object Settings {
     val tourSeen: StateFlow<Boolean> = _tourSeen.asStateFlow()
 
     /**
-     * The profile picture: null for the Aura mark, `face:<id>` for a built-in game face, `custom`
-     * for the square the user cropped from their own gallery. The picture itself lives in files,
-     * not in preferences, so a large photo cannot bloat the settings store.
+     * The profile picture: null for the Aura mark, `face:<id>` for a built-in game face,
+     * `special:<anime>:<poster>` for a painted poster, `custom` for the square the user cropped from
+     * their own gallery. The picture itself lives in files, not in preferences, so a large photo
+     * cannot bloat the settings store.
      */
     private val _avatar = MutableStateFlow<String?>(null)
     val avatar: StateFlow<String?> = _avatar.asStateFlow()
@@ -428,9 +430,13 @@ object Settings {
     private val _avatarFrame = MutableStateFlow(AvatarFrame.NONE)
     val avatarFrame: StateFlow<AvatarFrame> = _avatarFrame.asStateFlow()
 
-    /** The drawn cover, or the one the user cropped when [coverCustom] is true. */
+    /** The drawn cover, the pack entry behind [coverPoster], or the cropped photo. */
     private val _coverStyle = MutableStateFlow(CoverStyle.HOUSE)
     val coverStyle: StateFlow<CoverStyle> = _coverStyle.asStateFlow()
+
+    /** Which poster inside [coverStyle]'s gallery is worn; 0 for a drawn cover. */
+    private val _coverPoster = MutableStateFlow(0)
+    val coverPoster: StateFlow<Int> = _coverPoster.asStateFlow()
 
     private val _coverCustom = MutableStateFlow(false)
     val coverCustom: StateFlow<Boolean> = _coverCustom.asStateFlow()
@@ -505,6 +511,8 @@ object Settings {
         _avatar.value = prefs.getString(KEY_AVATAR, null)?.takeIf { it.isNotBlank() }
         _avatarFrame.value = AvatarFrame.from(prefs.getString(KEY_AVATAR_FRAME, null))
         _coverStyle.value = CoverStyle.from(prefs.getString(KEY_COVER_STYLE, null))
+        _coverPoster.value = prefs.getInt(KEY_COVER_POSTER, 0)
+            .coerceIn(0, _coverStyle.value.anime?.posters?.lastIndex ?: 0)
         _coverCustom.value = prefs.getBoolean(KEY_COVER_CUSTOM, false)
         _themeMode.value = runCatching {
             ThemeMode.valueOf(prefs.getString(KEY_THEME_MODE, null) ?: ThemeMode.SYSTEM.name)
@@ -632,12 +640,21 @@ object Settings {
         }
     }
 
-    /** Chooses a drawn cover, and turns the photograph off without deleting its file. */
-    fun setCoverStyle(context: Context, style: CoverStyle) {
+    /**
+     * Chooses a cover: one of the drawn styles, or an anime from the pack and one of its posters.
+     *
+     * The poster is written beside the style rather than inside its id. An anime card keeps its
+     * choice when the gallery is opened again, and a drawn cover stores 0, which is what a pack
+     * entry reads when it has never been browsed.
+     */
+    fun setCover(context: Context, style: CoverStyle, poster: Int = 0) {
+        val index = poster.coerceIn(0, style.anime?.posters?.lastIndex ?: 0)
         _coverStyle.value = style
+        _coverPoster.value = index
         _coverCustom.value = false
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
             putString(KEY_COVER_STYLE, style.id)
+            putInt(KEY_COVER_POSTER, index)
             putBoolean(KEY_COVER_CUSTOM, false)
         }
     }

@@ -58,9 +58,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -73,6 +75,8 @@ import dev.aurastore.store.data.AvatarStore
 import dev.aurastore.store.data.CUSTOM_AVATAR
 import dev.aurastore.store.data.GameFace
 import dev.aurastore.store.data.AvatarFrame
+import dev.aurastore.store.data.SpecialAnime
+import dev.aurastore.store.data.SpecialPick
 import dev.aurastore.store.theme.PlayMotion
 import dev.aurastore.store.ui.Glyph
 import dev.aurastore.store.ui.GlyphIcon
@@ -100,10 +104,13 @@ fun ProfilePicture(
     modifier: Modifier = Modifier,
     frame: AvatarFrame = AvatarFrame.NONE,
     contentDescription: String? = null,
+    /** A clock shared by a grid of pictures; null gives this picture its own. */
+    phase: Float? = null,
 ) {
     val context = LocalContext.current
     val version by AvatarStore.version.collectAsStateWithLifecycle()
     val face = remember(choice) { GameFace.from(choice) }
+    val special = remember(choice) { SpecialPick.from(choice) }
     val custom = choice == CUSTOM_AVATAR
     val scheme = MaterialTheme.colorScheme
     val bitmap = remember(choice, version, custom) {
@@ -112,7 +119,11 @@ fun ProfilePicture(
     val inset = if (frame == AvatarFrame.NONE) 0.dp else size * 0.078f
     // The bar copy turns with the header now: a moving ring is the profile's own mark, and a still
     // one in the bar read as a different picture rather than a smaller one.
-    val phase = rememberFramePhase(frame, animate = PlayMotion.enabled)
+    val ownPhase = rememberFramePhase(
+        frame,
+        animate = PlayMotion.enabled && phase == null,
+    )
+    val framePhase = phase ?: ownPhase
     Box(
         modifier
             .size(size)
@@ -134,6 +145,13 @@ fun ProfilePicture(
                 )
 
                 face != null -> Canvas(Modifier.fillMaxSize()) { drawFace(face) }
+
+                special != null -> Image(
+                    painter = painterResource(special.art),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
 
                 else -> Canvas(Modifier.fillMaxSize()) {
                     drawRect(scheme.surfaceContainerHigh)
@@ -166,17 +184,17 @@ fun ProfilePicture(
             }
         }
         if (frame != AvatarFrame.NONE) {
-            Canvas(Modifier.fillMaxSize()) { drawAvatarFrame(frame, phase, scheme) }
+            Canvas(Modifier.fillMaxSize()) { drawAvatarFrame(frame, framePhase, scheme) }
         }
     }
 }
 
 /**
- * The picker: eight faces and a gallery door.
+ * The picker: eight drawn faces, eight painted ones, and a gallery door.
  *
- * The faces are the defaults, drawn rather than fetched, so a fresh install has a full set with no
- * network and no storage. The gallery row is the only way out of the set, and a long press is not
- * needed for anything: one tap chooses, one tap leaves.
+ * The drawn faces are the defaults, drawn rather than fetched, so a fresh install has a full set with
+ * no network and no storage. The Special pack is the painted set. The gallery row is the only way out
+ * of both sets, and a long press is not needed for anything: one tap chooses, one tap leaves.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -187,6 +205,10 @@ fun AvatarPicker(
     onGallery: () -> Unit,
 ) {
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // Which anime's gallery is open. The pack is thirty doors, not nine hundred cells: a sheet that
+    // listed every poster at once would be a wall of thumbnails with no way to tell whose it was.
+    var openAnime by remember { mutableStateOf<SpecialAnime?>(null) }
+    val picked = remember(current) { SpecialPick.from(current) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
         Column(
             Modifier
@@ -249,13 +271,107 @@ fun AvatarPicker(
                 ) {
                     row.forEach { face ->
                         FaceCell(
-                            face = face,
+                            label = stringResource(face.label),
                             selected = current == face.choice,
                             onClick = { onPick(face.choice) },
                             modifier = Modifier.weight(1f),
-                        )
+                        ) {
+                            Canvas(Modifier.size(56.dp).clip(CircleShape)) { drawFace(face) }
+                        }
                     }
                     repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+            // The Special pack is its own category rather than more cells in the same row: the
+            // drawn set is the house's own, and a painted face is a different kind of choice.
+            HorizontalDivider(Modifier.padding(vertical = 10.dp))
+            val open = openAnime
+            if (open == null) {
+                Text(
+                    stringResource(R.string.special_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                )
+                Text(
+                    stringResource(R.string.special_faces_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                )
+                // Three columns, not four: a title like "Fullmetal Alchemist" needs the room, and the
+                // sheet scrolls either way. A card opens the anime rather than wearing its first
+                // poster: the choice being offered is one of thirty, not whichever one is on top.
+                SpecialAnime.entries.chunked(3).forEach { row ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        row.forEach { anime ->
+                            FaceCell(
+                                label = stringResource(anime.label),
+                                labelLines = 2,
+                                selected = picked?.anime == anime,
+                                onClick = { openAnime = anime },
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Image(
+                                    painter = painterResource(anime.posters.first()),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.size(56.dp).clip(CircleShape),
+                                )
+                            }
+                        }
+                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+            } else {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .playClickable(onClick = { openAnime = null })
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    GlyphIcon(Glyph.Back, size = 20.dp, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.size(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            stringResource(open.label),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            stringResource(R.string.special_faces_gallery),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                // Thirty posters, three to a row, each drawn in the circle the picture is worn in:
+                // the cell is the crop, so what is tapped is what the profile shows.
+                open.posters.toList().chunked(3).forEachIndexed { rowIndex, row ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        row.forEachIndexed { column, art ->
+                            val index = rowIndex * 3 + column
+                            FaceCell(
+                                label = "${index + 1}",
+                                selected = picked == SpecialPick(open, index),
+                                onClick = { onPick(SpecialPick(open, index).choice) },
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Image(
+                                    painter = painterResource(art),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.size(56.dp).clip(CircleShape),
+                                )
+                            }
+                        }
+                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
                 }
             }
         }
@@ -264,10 +380,12 @@ fun AvatarPicker(
 
 @Composable
 private fun FaceCell(
-    face: GameFace,
+    label: String,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    labelLines: Int = 1,
+    art: @Composable () -> Unit,
 ) {
     Column(
         modifier.playClickable(onClick = onClick).padding(vertical = 4.dp),
@@ -286,16 +404,18 @@ private fun FaceCell(
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Canvas(Modifier.size(56.dp).clip(CircleShape)) { drawFace(face) }
+            art()
         }
         Text(
-            stringResource(face.label),
+            label,
             style = MaterialTheme.typography.labelSmall,
             color = if (selected) {
                 MaterialTheme.colorScheme.primary
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
+            maxLines = labelLines,
+            textAlign = TextAlign.Center,
         )
     }
 }

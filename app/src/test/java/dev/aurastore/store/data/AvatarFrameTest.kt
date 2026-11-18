@@ -30,12 +30,18 @@ class AvatarFrameTest {
 
     @Test
     fun `only the rings that move are marked animated`() {
+        val still = setOf(
+            AvatarFrame.NONE,
+            AvatarFrame.RING,
+            AvatarFrame.GOLD,
+            AvatarFrame.LAUREL,
+        )
         AvatarFrame.entries.forEach { frame ->
-            val moving = frame == AvatarFrame.NEON || frame == AvatarFrame.ORBIT ||
-                frame == AvatarFrame.PULSE || frame == AvatarFrame.EMBER
-            assertEquals(frame.name, moving, frame.animated)
+            assertEquals(frame.name, frame !in still, frame.animated)
         }
         assertFalse(AvatarFrame.NONE.animated)
         assertTrue(AvatarFrame.EMBER.animated)
+        assertTrue(AvatarFrame.ZENITH.animated)
+        assertEquals(38, AvatarFrame.entries.size)
     }
 }
