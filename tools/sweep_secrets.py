@@ -22,7 +22,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from gitfiles import tracked  # noqa: E402  the list of files the repository publishes
+from gitfiles import tracked, untracked  # noqa: E402  the list of files the repository publishes
 
 # The shapes a credential takes. Each is a shape, not an example.
 PATTERNS = {
@@ -155,6 +155,10 @@ def main(argv):
     everything = "--all" in argv
     tracked_hits = scan(tracked())
     show(tracked_hits, "tracked tree")
+    pending = untracked()
+    pending_hits = scan(pending)
+    if pending_hits:
+        show(pending_hits, "not staged yet, and a git add would publish it")
     if everything:
         local = [
             hit
@@ -165,10 +169,13 @@ def main(argv):
         rest = [hit for hit in local if not hit[1].startswith(LOCAL_ONLY)]
         show(held, "working directory, signing material (expected here)", warn_only=True)
         show(rest, "working directory")
-    if tracked_hits:
-        print("FAIL: the tree the repository publishes holds a credential.")
+    if tracked_hits or pending_hits:
+        if tracked_hits:
+            print("FAIL: the tree the repository publishes holds a credential.")
+        if pending_hits:
+            print("FAIL: a plain git add would publish a credential. The commit carries it; the index does not yet.")
         return 1
-    print("PASS: the tree the repository publishes holds no credential.")
+    print("PASS: the tree the repository publishes holds no credential, and nothing a git add would add does either.")
     return 0
 
 

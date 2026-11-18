@@ -86,6 +86,25 @@ def tracked():
     return from_index()
 
 
+def untracked():
+    """The paths a plain `git add -A` would publish next, ignoring what `.gitignore` covers.
+
+    A gate that reads only the index cannot see a file that is still untracked, and a file staged
+    after the gate ran goes into the commit unread. This list closes that gap: whatever the next add
+    would carry is scanned too, so a capture dropped in the tree is named before it is committed.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+            cwd=ROOT,
+            capture_output=True,
+            check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return []
+    return [p.decode("utf-8", "replace") for p in out.split(b"\0") if p]
+
+
 def main(argv):
     paths = tracked()
     if "--count" in argv:

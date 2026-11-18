@@ -29,13 +29,18 @@ The keystore, its passwords, `local.properties` and any copy of the key are all 
    "1.1.0"` and tag `v1.1.0`.
 2. Write the notes for the version in [`release-notes/v1.1.0.md`](../release-notes/) and add the
    dated section at the top of [`CHANGELOG.md`](../CHANGELOG.md).
-3. Run the gates:
+3. Stage the tree, then run the gates:
 
    ```bash
+   git add -A
    python tools/sweep_secrets.py
    python tools/prose_gate.py
    ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
    ```
+
+   The sweep reads git's index, so a file that is still untracked is a file it cannot vouch for. It
+   also names every file a plain `git add -A` would publish next, which is the shape of the mistake
+   that put a captured page into 1.6.0 after the gate had passed.
 
 4. Build both APKs and check the signature before anything is published:
 
