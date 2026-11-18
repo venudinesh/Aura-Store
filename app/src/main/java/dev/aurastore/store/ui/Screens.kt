@@ -19,6 +19,9 @@ sealed interface Screen {
     /** A category term, or the picker of every term when the id is `0`. */
     data class Category(val id: Long) : Screen
 
+    /** One rail's full list, in the rail's own ordering. The query is what makes the cut. */
+    data class Listing(val title: String, val query: Map<String, String>) : Screen
+
     data object Settings : Screen
 
     /** One category of the Settings hub, one level deeper than the hub itself. */
@@ -67,7 +70,8 @@ sealed interface Screen {
 fun Screen.depth(): Int = when (this) {
     is Screen.Feed -> 0
     is Screen.Category, Screen.Settings, is Screen.Source, is Screen.Download,
-    Screen.Downloads, Screen.Manage, Screen.Device, Screen.About, Screen.Wishlist -> 1
+    Screen.Downloads, Screen.Manage, Screen.Device, Screen.About, Screen.Wishlist,
+    is Screen.Listing -> 1
     is Screen.Detail, is Screen.SourcePage, is Screen.SettingsGroup -> 2
 }
 

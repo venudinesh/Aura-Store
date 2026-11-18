@@ -51,6 +51,7 @@ import dev.aurastore.store.data.Category
 import dev.aurastore.store.data.ListPager
 import dev.aurastore.store.data.PostSummary
 import dev.aurastore.store.data.Settings
+import dev.aurastore.store.data.sources.ShelfMore
 import dev.aurastore.store.data.sources.SourceApp
 import dev.aurastore.store.data.sources.SourceCategory
 import dev.aurastore.store.data.sources.SourceHub
@@ -157,10 +158,16 @@ data class FeedState(
     val serverCategories: List<SourceCategory> = emptyList(),
     /** The source's front page as the rows it draws, before a category is chosen. */
     val serverShelves: List<SourceShelf> = emptyList(),
+    /**
+     * Whether the whole-catalogue grid is on screen by itself, opened from a shelf's *View all*.
+     * The home repeats that grid under its shelves; this is the same list without them in the way.
+     */
+    val serverAllOpen: Boolean = false,
     /** Everything the source publishes, in its own order, growing a page at a time under the shelves. */
     val serverAll: List<SourceApp> = emptyList(),
     val serverAllPage: Int = 1,
     val serverAllHasMore: Boolean = false,
+    val serverAllLoading: Boolean = false,
     val serverAllLoadingMore: Boolean = false,
     val serverAllMoreError: StatusLine? = null,
     /** The category whose apps are listed, or null while the source's home is on screen. */
@@ -274,6 +281,7 @@ class FeedViewModel(private val kind: FeedKind) : ViewModel() {
                 server = id,
                 serverCategories = emptyList(),
                 serverShelves = emptyList(),
+                serverAllOpen = false,
                 serverCategory = null,
                 serverApps = emptyList(),
                 serverPage = 1,
@@ -281,6 +289,7 @@ class FeedViewModel(private val kind: FeedKind) : ViewModel() {
                 serverAll = emptyList(),
                 serverAllPage = 1,
                 serverAllHasMore = false,
+                serverAllLoading = false,
                 serverAllLoadingMore = false,
                 serverAllMoreError = null,
                 serverLoading = id != SourceId.LITEAPKS,
@@ -310,12 +319,13 @@ class FeedViewModel(private val kind: FeedKind) : ViewModel() {
                     // one row rather than a blank screen.
                     serverShelves = section?.shelves.orEmpty().ifEmpty {
                         section?.apps.orEmpty().takeIf { apps -> apps.isNotEmpty() }
-                            ?.let { apps -> listOf(SourceShelf("Latest", apps)) }
+                            ?.let { apps -> listOf(SourceShelf("Latest", apps, ShelfMore.All)) }
                             .orEmpty()
                     },
                     // The home is the first screen, not the first category: a site that shows
                     // *New games* above *Popular games* should open on both rows, not on whichever
-                    // term happened to be first in its tree.
+                    // term happened to be first in its tree. A pull-to-refresh on the whole-catalogue
+                    // grid keeps that grid: the reader asked for the list, not for the home again.
                     serverCategory = null,
                     serverApps = emptyList(),
                     serverPage = 1,
@@ -323,6 +333,7 @@ class FeedViewModel(private val kind: FeedKind) : ViewModel() {
                     serverAll = emptyList(),
                     serverAllPage = 1,
                     serverAllHasMore = false,
+                    serverAllLoading = false,
                     serverAllLoadingMore = false,
                     serverAllMoreError = null,
                     serverLoading = false,
@@ -348,6 +359,9 @@ class FeedViewModel(private val kind: FeedKind) : ViewModel() {
      */
     private fun loadAllAppsPage(id: SourceId, page: Int) {
         serverAllJob?.cancel()
+        _state.update { current ->
+            if (current.server != id) current else current.copy(serverAllLoading = page <= 1)
+        }
         serverAllJob = viewModelScope.launch {
             val outcome = runCatching { SourceHub.allAppsPage(id, page) }
             _state.update { current ->
@@ -364,6 +378,7 @@ class FeedViewModel(private val kind: FeedKind) : ViewModel() {
                                 },
                                 serverAllPage = page,
                                 serverAllHasMore = result.hasMore,
+                                serverAllLoading = false,
                                 serverAllLoadingMore = false,
                                 serverAllMoreError = null,
                             )
@@ -372,8 +387,9 @@ class FeedViewModel(private val kind: FeedKind) : ViewModel() {
                             val line = e.message?.let { text -> StatusLine(text = text) }
                                 ?: StatusLine(R.string.src_all_failed, listOf(id.label))
                             current.copy(
+                                serverAllLoading = false,
                                 serverAllLoadingMore = false,
-                                serverAllMoreError = if (page <= 1) null else line,
+                                serverAllMoreError = line,
                             )
                         },
                     )
@@ -389,6 +405,7 @@ class FeedViewModel(private val kind: FeedKind) : ViewModel() {
         _state.update {
             it.copy(
                 serverCategory = null,
+                serverAllOpen = false,
                 serverApps = emptyList(),
                 serverPage = 1,
                 serverHasMore = false,
@@ -412,6 +429,7 @@ class FeedViewModel(private val kind: FeedKind) : ViewModel() {
         _state.update {
             it.copy(
                 serverCategory = category,
+                serverAllOpen = false,
                 serverApps = emptyList(),
                 serverPage = 1,
                 serverHasMore = false,
@@ -422,6 +440,44 @@ class FeedViewModel(private val kind: FeedKind) : ViewModel() {
             )
         }
         loadServerPage(category, 1)
+    }
+
+    /**
+     * Opens the full list behind one of the selected server's shelves.
+     *
+     * A row that names a term opens that term's paged category, which is the same list the chip row
+     * opens. A row the site curates by hand opens the catalogue-wide grid the home already carries
+     * under its shelves, without the shelves in the way.
+     */
+    fun openShelf(shelf: SourceShelf) {
+        when (val more = shelf.more) {
+            is ShelfMore.Category -> selectServerCategory(more.category)
+            ShelfMore.All -> showServerAll()
+            null -> Unit
+        }
+    }
+
+    /** The source's whole catalogue on its own. */
+    private fun showServerAll() {
+        serverPageJob?.cancel()
+        serverPageJob = null
+        _state.update {
+            it.copy(
+                serverCategory = null,
+                serverAllOpen = true,
+                serverApps = emptyList(),
+                serverPage = 1,
+                serverHasMore = false,
+                serverLoading = false,
+                serverLoadingMore = false,
+                serverError = null,
+                serverMoreError = null,
+            )
+        }
+        val current = _state.value
+        if (current.server != SourceId.LITEAPKS && current.serverAll.isEmpty() && !current.serverAllLoading) {
+            loadAllAppsPage(current.server, 1)
+        }
     }
 
     /** One page of a category, appended to what is on screen when it is not the first. */
@@ -756,6 +812,11 @@ fun FeedScreen(
     onOpenCategory: (Long) -> Unit = {},
     /** Opens one source app's own page from the Browse shelves. */
     onOpenSourceApp: (SourceApp) -> Unit = {},
+    /**
+     * Opens one rail's full paged list, in the rail's own ordering. Only Browse passes it: the same
+     * rails sit on the Games and Apps tabs, where the flat list under them is already the full view.
+     */
+    onOpenListing: ((String, Map<String, String>) -> Unit)? = null,
     refreshKey: Int = 0,
     /** Bumped by the shell when the tab already showing is tapped again. */
     scrollTopKey: Int = 0,
@@ -926,6 +987,9 @@ fun FeedScreen(
                     generation = state.generation,
                     onOpenPost = onOpenPost,
                     onLoadMore = viewModel::loadMoreRail,
+                    onOpenAll = onOpenListing?.let { open ->
+                        { full: Rail -> open(full.title, full.query) }
+                    },
                 )
             }
         }
@@ -970,6 +1034,7 @@ fun FeedScreen(
             serverBrowse(
                 state = state,
                 onSelectCategory = viewModel::selectServerCategory,
+                onOpenShelf = viewModel::openShelf,
                 onHome = viewModel::showServerHome,
                 onPick = onOpenSourceApp,
                 onRetry = viewModel::retryServer,

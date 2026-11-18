@@ -57,6 +57,7 @@ import dev.aurastore.store.ui.statusText
 internal fun LazyListScope.serverBrowse(
     state: FeedState,
     onSelectCategory: (SourceCategory) -> Unit,
+    onOpenShelf: (SourceShelf) -> Unit,
     onHome: () -> Unit,
     onPick: (SourceApp) -> Unit,
     onRetry: () -> Unit,
@@ -76,7 +77,7 @@ internal fun LazyListScope.serverBrowse(
                 item(key = "server-home-${source.name}") {
                     PlayChip(
                         label = source.label,
-                        selected = state.serverCategory == null,
+                        selected = state.serverCategory == null && !state.serverAllOpen,
                         onClick = onHome,
                     )
                 }
@@ -107,35 +108,61 @@ internal fun LazyListScope.serverBrowse(
     }
 
     if (state.serverCategory == null) {
-        // The front page: one row per shelf, in the order the site posted them.
-        state.serverShelves.forEachIndexed { index, shelf ->
-            item(key = "server-shelf-${source.name}-$index") {
-                SourceShelfRow(shelf = shelf, onPick = onPick)
+        // The front page: one row per shelf, in the order the site posted them. A *View all* that
+        // opened the whole catalogue leaves the rows out: the grid below is what was asked for.
+        if (!state.serverAllOpen) {
+            state.serverShelves.forEachIndexed { index, shelf ->
+                item(key = "server-shelf-${source.name}-$index") {
+                    SourceShelfRow(
+                        shelf = shelf,
+                        onPick = onPick,
+                        onOpenAll = shelf.more?.let { { onOpenShelf(shelf) } },
+                    )
+                }
             }
         }
         // Under its own shelves, the source's whole catalogue, in the order the source lists it.
         // The shelves are what the site chose; this is everything it has, a page at a time.
-        if (state.serverAll.isNotEmpty()) {
+        val allShown = state.serverAll.isNotEmpty() || state.serverAllLoading ||
+            (state.serverAllOpen && state.serverAllMoreError != null)
+        if (allShown) {
             item(key = "server-all-header-${source.name}") {
                 SectionHeader(
                     title = stringResource(R.string.src_all_apps, source.label),
                     subtitle = stringResource(R.string.src_all_apps_note),
                 )
             }
+            if (state.serverAllLoading && state.serverAll.isEmpty()) {
+                item(key = "server-all-loading-${source.name}") { LoadingRail() }
+            }
+            if (state.serverAll.isEmpty()) {
+                state.serverAllMoreError?.let { message ->
+                    item(key = "server-all-error-${source.name}") {
+                        StateMessage(
+                            title = stringResource(R.string.feed_unavailable),
+                            body = statusText(message),
+                            onRetry = onRetry,
+                        )
+                    }
+                }
+            }
             sourceGrid(state.serverAll, keyPrefix = "server-all-${source.name}-", onPick = onPick)
-            item(key = "server-all-footer-${source.name}") {
-                PagingFooter(
-                    loading = state.serverAllLoadingMore,
-                    hasMore = state.serverAllHasMore,
-                    capped = false,
-                    error = state.serverAllMoreError,
-                    name = source.label,
-                    onRetry = onLoadMore,
-                )
+            if (state.serverAll.isNotEmpty()) {
+                item(key = "server-all-footer-${source.name}") {
+                    PagingFooter(
+                        loading = state.serverAllLoadingMore,
+                        hasMore = state.serverAllHasMore,
+                        capped = false,
+                        error = state.serverAllMoreError,
+                        name = source.label,
+                        onRetry = onLoadMore,
+                    )
+                }
             }
         }
         if (!state.serverLoading && state.serverError == null &&
-            state.serverShelves.isEmpty() && state.serverAll.isEmpty()
+            state.serverAll.isEmpty() && !state.serverAllLoading && state.serverAllMoreError == null &&
+            (state.serverShelves.isEmpty() || state.serverAllOpen)
         ) {
             item(key = "server-empty-${source.name}") {
                 StateMessage(
@@ -147,6 +174,14 @@ internal fun LazyListScope.serverBrowse(
         }
     } else {
         // One category: the two-column card grid the sites use on their own listing pages.
+        val category = state.serverCategory
+        // A shelf can lead to a listing the source does not put in its own chip row — its whole
+        // games shelf, say. This heading is what names that list when no chip can.
+        if (state.serverCategories.none { it.id == category.id }) {
+            item(key = "server-cat-header-${source.name}-${category.id}") {
+                SectionHeader(title = category.name, subtitle = source.label)
+            }
+        }
         sourceGrid(state.serverApps, keyPrefix = "server-cat-${source.name}-", onPick = onPick)
 
         if (state.serverApps.isNotEmpty()) {
@@ -156,7 +191,7 @@ internal fun LazyListScope.serverBrowse(
                     hasMore = state.serverHasMore,
                     capped = false,
                     error = state.serverMoreError,
-                    name = state.serverCategory?.name ?: source.label,
+                    name = category.name,
                     onRetry = onLoadMore,
                 )
             }
@@ -194,14 +229,18 @@ private fun LazyListScope.sourceGrid(
     }
 }
 
-/** One titled rail of a source's own cards. */
+/** One titled rail of a source's own cards, with the way to the list behind it. */
 @Composable
-private fun SourceShelfRow(shelf: SourceShelf, onPick: (SourceApp) -> Unit) {
+private fun SourceShelfRow(
+    shelf: SourceShelf,
+    onPick: (SourceApp) -> Unit,
+    onOpenAll: (() -> Unit)?,
+) {
     Column(Modifier.padding(bottom = 10.dp)) {
-        Text(
+        SectionHeader(
             shelf.title,
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+            onMore = onOpenAll,
+            moreLabel = if (onOpenAll != null) stringResource(R.string.feed_view_all) else null,
         )
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),

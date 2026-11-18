@@ -22,6 +22,21 @@ object ApkVisionSource : Source {
     private const val GAMES_URL = "$BASE/games/"
     private const val APPS_URL = "$BASE/app/"
 
+    /** The two shelves the home rows sit on, which are also the full lists behind them. */
+    private val gamesCategory = SourceCategory(
+        source = SourceId.APKVISION,
+        id = "games",
+        name = "Games",
+        url = GAMES_URL,
+    )
+
+    private val appsCategory = SourceCategory(
+        source = SourceId.APKVISION,
+        id = "apps",
+        name = "Apps",
+        url = APPS_URL,
+    )
+
     override suspend fun search(query: String): List<SourceApp> {
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return emptyList()
@@ -73,9 +88,17 @@ object ApkVisionSource : Source {
             RegexOption.DOT_MATCHES_ALL,
         ).findAll(html)
             .mapNotNull { match ->
-                val title = homeRowTitles[match.groupValues[1]] ?: return@mapNotNull null
+                val section = match.groupValues[1]
+                val title = homeRowTitles[section] ?: return@mapNotNull null
                 val apps = parseHomeCards(match.groupValues[2])
-                if (apps.isEmpty()) null else SourceShelf(title, apps)
+                if (apps.isEmpty()) {
+                    null
+                } else {
+                    // Every row is a window on one of the two shelves; the section's own id says
+                    // which half of the catalogue the full list comes from.
+                    val shelf = if (section.startsWith("home-games")) gamesCategory else appsCategory
+                    SourceShelf(title, apps, ShelfMore.Category(shelf))
+                }
             }
             .toList()
 

@@ -25,6 +25,10 @@ class RouteTest {
             Route.Download("2f8a1c3e-0000-4000-8000-000000000001"),
             Route.Category(0L),
             Route.Category(482L),
+            Route.Listing(
+                "Editor's Choice",
+                mapOf("taxonomy" to "app_type", "tax_ids" to "50", "limit" to "9"),
+            ),
             Route.Settings,
             Route.SettingsGroup(SettingsSection.NAVIGATION),
             Route.Downloads,
@@ -53,6 +57,12 @@ class RouteTest {
         routes.forEach { route ->
             assertEquals("round trip failed for $route", route, decodeRoute(encodeRoute(route)))
         }
+    }
+
+    @Test
+    fun `a listing keeps query values that look like separators`() {
+        val route = Route.Listing("New & updated", mapOf("order_by" to "a&b=c", "tax_ids" to "12"))
+        assertEquals(route, decodeRoute(encodeRoute(route)))
     }
 
     @Test
@@ -104,6 +114,10 @@ class RouteTest {
     fun `a route draws the screen the shell animates to`() {
         assertEquals(Screen.Detail(7L), Route.Detail(7L).toScreen())
         assertEquals(Screen.Category(0L), Route.Category(0L).toScreen())
+        assertEquals(
+            Screen.Listing("Editor's Choice", mapOf("tax_ids" to "50")),
+            Route.Listing("Editor's Choice", mapOf("tax_ids" to "50")).toScreen(),
+        )
         assertEquals(Screen.Settings, Route.Settings.toScreen())
         assertEquals(
             Screen.SettingsGroup(SettingsSection.NAVIGATION),

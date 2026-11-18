@@ -140,6 +140,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import dev.aurastore.store.ui.feed.FeedKind
 import dev.aurastore.store.ui.feed.FeedScreen
+import dev.aurastore.store.ui.feed.ListingScreen
 import dev.aurastore.store.ui.manage.ManageScreen
 import dev.aurastore.store.ui.profile.ProfilePicture
 import dev.aurastore.store.ui.search.SearchScreen
@@ -665,6 +666,13 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
                                 onOpenPost = { push(Route.Detail(it)) },
                             )
 
+                            is Screen.Listing -> ListingScreen(
+                                title = route.title,
+                                query = route.query,
+                                onBack = ::pop,
+                                onOpenPost = { push(Route.Detail(it)) },
+                            )
+
                             Screen.Settings -> SettingsScreen(
                                 onBack = ::pop,
                                 onOpenSection = { section -> push(Route.SettingsGroup(section)) },
@@ -739,6 +747,7 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
                                     onOpenPost = { push(Route.Detail(it)) },
                                     onOpenCategory = { push(Route.Category(it)) },
                                     onOpenSourceApp = { app -> push(Route.SourcePage(app)) },
+                                    onOpenListing = { title, query -> push(Route.Listing(title, query)) },
                                     refreshKey = catalogueRefresh,
                                     scrollTopKey = scrollTop,
                                 )

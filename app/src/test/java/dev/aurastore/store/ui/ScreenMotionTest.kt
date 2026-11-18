@@ -23,6 +23,7 @@ class ScreenMotionTest {
     private val apps = Screen.Feed(1)
     private val search = Screen.Feed(2)
     private val racing = Screen.Category(9L)
+    private val listing = Screen.Listing("Editor's Choice", mapOf("tax_ids" to "50"))
     private val detail = Screen.Detail(45327L)
     private val settings = Screen.Settings
     private val settingsGroup = Screen.SettingsGroup(SettingsSection.NAVIGATION)
@@ -38,6 +39,7 @@ class ScreenMotionTest {
         assertEquals(0, games.depth())
         assertEquals(0, search.depth())
         assertEquals(1, racing.depth())
+        assertEquals(1, listing.depth())
         assertEquals(1, settings.depth())
         assertEquals(1, source.depth())
         assertEquals(1, download.depth())

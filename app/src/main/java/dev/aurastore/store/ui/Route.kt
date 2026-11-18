@@ -3,6 +3,8 @@ package dev.aurastore.store.ui
 import dev.aurastore.store.data.sources.SourceApp
 import dev.aurastore.store.data.sources.SourceId
 import dev.aurastore.store.ui.settings.SettingsSection
+import java.net.URLDecoder
+import java.net.URLEncoder
 
 /**
  * A page the shell has pushed on top of a tab.
@@ -22,6 +24,15 @@ sealed interface Route {
     data class Download(val id: String) : Route
     data class Category(val id: Long) : Route
     data object Settings : Route
+
+    /**
+     * One rail's full list, in the rail's own ordering.
+     *
+     * A rail is the catalogue's own cut of a list — *Editor's Choice*, a modified-games row — and its
+     * query is what makes that cut. Carrying it here means the full page walks the same rows the row
+     * showed instead of guessing a term from the title.
+     */
+    data class Listing(val title: String, val query: Map<String, String>) : Route
 
     /**
      * One category of Settings, opened from the hub.
@@ -89,6 +100,7 @@ fun Route.toScreen(query: String = ""): Screen = when (this) {
     is Route.Download -> Screen.Download(id)
     is Route.Category -> Screen.Category(id)
     Route.Settings -> Screen.Settings
+    is Route.Listing -> Screen.Listing(title, query = this.query)
     is Route.SettingsGroup -> Screen.SettingsGroup(section)
     Route.Downloads -> Screen.Downloads
     Route.Manage -> Screen.Manage
@@ -113,6 +125,11 @@ fun encodeRoute(route: Route): String = when (route) {
     is Route.Download -> "download$SEP${route.id}"
     is Route.Category -> "category$SEP${route.id}"
     Route.Settings -> "settings"
+    is Route.Listing -> listOf(
+        "listing",
+        URLEncoder.encode(route.title, "UTF-8"),
+        encodeQuery(route.query),
+    ).joinToString(SEP)
     is Route.SettingsGroup -> "settings-group$SEP${route.section.name}"
     Route.Downloads -> "downloads"
     Route.Manage -> "manage"
@@ -147,6 +164,13 @@ fun decodeRoute(encoded: String): Route? {
         "download" -> parts.getOrNull(1)?.takeIf { it.isNotEmpty() }?.let(Route::Download)
         "category" -> parts.getOrNull(1)?.toLongOrNull()?.let(Route::Category)
         "settings" -> Route.Settings
+        "listing" -> {
+            val title = parts.getOrNull(1)
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { URLDecoder.decode(it, "UTF-8") }
+                ?.takeIf { it.isNotBlank() }
+            if (title == null) null else Route.Listing(title, decodeQuery(parts.getOrNull(2).orEmpty()))
+        }
         "settings-group" -> parts.getOrNull(1)
             ?.let { name -> runCatching { SettingsSection.valueOf(name) }.getOrNull() }
             ?.let(Route::SettingsGroup)
@@ -185,6 +209,26 @@ fun decodeRoute(encoded: String): Route? {
         else -> null
     }
 }
+
+/**
+ * A listing's parameters as one string, and back.
+ *
+ * Values are percent-encoded, so an order or a term that carries `&` or `=` cannot split the pair it
+ * belongs to. The map is small by design — the catalogue's own module parameters — and the encoding
+ * keeps a route a plain bundle string the same way the rest of the stack does.
+ */
+private fun encodeQuery(query: Map<String, String>): String =
+    query.entries.joinToString("&") { (key, value) ->
+        URLEncoder.encode(key, "UTF-8") + "=" + URLEncoder.encode(value, "UTF-8")
+    }
+
+private fun decodeQuery(encoded: String): Map<String, String> =
+    encoded.split("&").mapNotNull { pair ->
+        val at = pair.indexOf('=')
+        if (at <= 0) return@mapNotNull null
+        URLDecoder.decode(pair.substring(0, at), "UTF-8") to
+            URLDecoder.decode(pair.substring(at + 1), "UTF-8")
+    }.toMap()
 
 /**
  * Whether a push of [next] on top of [current] should replace it instead of stacking.

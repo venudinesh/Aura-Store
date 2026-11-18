@@ -275,6 +275,25 @@ class SourceShelvesTest {
         assertEquals("120 MB", first.size)
         assertEquals("Unlimited Money", first.subtitle)
         assertEquals("v1.0.147", shelves[1].apps.single().version)
+        // Both game rows lead to the whole games shelf, not to a term of their own.
+        assertEquals("Games", (shelves[0].more as ShelfMore.Category).category.name)
+        assertEquals("Games", (shelves[1].more as ShelfMore.Category).category.name)
+        assertEquals("https://getmodsapk.com/games", (shelves[1].more as ShelfMore.Category).category.url)
+    }
+
+    @Test
+    fun `getmodsapk featured row leads to the whole catalogue`() {
+        val html = """
+            <h2><span>Featured</span></h2>
+            <div class="grid">
+              <a href="https://getmodsapk.com/8438-clash-royale-free-mod-apk/">
+                <h3>Clash Royale</h3>
+              </a>
+            </div>
+        """.trimIndent()
+        val shelves = GetModsApkSource.parseHomeShelves(html)
+        // Featured is a pick across both shelves, so the full list behind it is everything.
+        assertEquals(ShelfMore.All, shelves.single().more)
     }
 
     @Test
@@ -309,6 +328,11 @@ class SourceShelvesTest {
         assertEquals("v0.1-dev", first.version)
         assertEquals("https://apkvision.org/wp-content/uploads/frostpunk.jpg", first.iconUrl)
         assertEquals("v2.0", shelves[1].apps.single().version)
+        // A games row leads to the games shelf and an apps row to the apps shelf.
+        assertEquals("Games", (shelves[0].more as ShelfMore.Category).category.name)
+        assertEquals("https://apkvision.org/games/", (shelves[0].more as ShelfMore.Category).category.url)
+        assertEquals("Apps", (shelves[1].more as ShelfMore.Category).category.name)
+        assertEquals("https://apkvision.org/app/", (shelves[1].more as ShelfMore.Category).category.url)
     }
 
     @Test

@@ -41,9 +41,12 @@ fun RailRow(
     generation: Any?,
     onOpenPost: (Long) -> Unit,
     onLoadMore: (String) -> Unit,
+    /** Opens the full list behind this row; null leaves its heading as a plain title. */
+    onOpenAll: ((Rail) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val rowState = rememberLazyListState()
+    val moreLabel = if (onOpenAll != null) stringResource(R.string.feed_view_all) else null
     // Four cards before the last, which on this width is roughly one swipe of screen left to read.
     val nearTheEnd by remember {
         derivedStateOf {
@@ -57,7 +60,12 @@ fun RailRow(
     }
 
     Column(modifier) {
-        SectionHeader(rail.title, subtitle = rail.subtitle)
+        SectionHeader(
+            rail.title,
+            subtitle = rail.subtitle,
+            onMore = onOpenAll?.let { open -> { open(rail) } },
+            moreLabel = moreLabel,
+        )
         LazyRow(
             state = rowState,
             contentPadding = PaddingValues(horizontal = 16.dp),

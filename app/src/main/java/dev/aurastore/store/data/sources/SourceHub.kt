@@ -8,6 +8,22 @@ import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 
 /**
+ * Where a shelf's heading leads when a person taps *View all*.
+ *
+ * A shelf is the row the site drew on its front page, not a listing: it stops at the cards the
+ * designer put in it. The full list behind it is one of two shapes — the source's own term, which
+ * pages like any other category, or the source's whole catalogue, for a row the site curates by hand
+ * and publishes no term for.
+ */
+sealed interface ShelfMore {
+    /** The source's own listing for this row, paged through [Source.appsPage]. */
+    data class Category(val category: SourceCategory) : ShelfMore
+
+    /** The source's whole catalogue, paged through [Source.allAppsPage]. */
+    data object All : ShelfMore
+}
+
+/**
  * One titled row of cards exactly as a source's own front page draws it.
  *
  * The sites do not publish one flat newest list. 5play has *New games* above *Popular games*,
@@ -18,6 +34,8 @@ import java.util.concurrent.ConcurrentHashMap
 data class SourceShelf(
     val title: String,
     val apps: List<SourceApp>,
+    /** The full list behind this row, so its heading can offer *View all*. */
+    val more: ShelfMore? = null,
 )
 
 /**

@@ -65,7 +65,7 @@ object NineModSource : Source {
             Web.get("$REST/posts?per_page=20&orderby=date&_fields=id,title,link,featured_media")
         }.getOrNull().orEmpty()
         val apps = parseRestPosts(json, iconsForPosts(json))
-        return if (apps.isEmpty()) emptyList() else listOf(SourceShelf("Latest", apps))
+        return if (apps.isEmpty()) emptyList() else listOf(SourceShelf("Latest", apps, ShelfMore.All))
     }
 
     /** The site's own category terms. */
@@ -363,6 +363,21 @@ object FivePlaySource : Source {
     override val id = SourceId.FIVEPLAY
     private const val BASE = "https://5play.org/en/"
 
+    /** The site's two shelves, shared by the chip row and by the rows that lead back to them. */
+    private val gamesCategory = SourceCategory(
+        source = SourceId.FIVEPLAY,
+        id = "games",
+        name = "Games",
+        url = "${BASE}android/games/",
+    )
+
+    private val appsCategory = SourceCategory(
+        source = SourceId.FIVEPLAY,
+        id = "apps",
+        name = "Apps",
+        url = "${BASE}android/apps/",
+    )
+
     /**
      * The site's newest shelves.
      *
@@ -386,11 +401,33 @@ object FivePlaySource : Source {
     override suspend fun shelves(): List<SourceShelf> {
         val home = Web.get(BASE)
         return listOf(
-            SourceShelf("Recommended", parseFeatureCards(sectionHtml(home, "nx-h-recom"))),
-            SourceShelf("New games", parseShelfCards(sectionHtml(home, "nx-h-new-games"))),
-            SourceShelf("Popular games", parseShelfCards(sectionHtml(home, "nx-h-pop-games"))),
-            SourceShelf("New apps", parseShelfCards(sectionHtml(home, "nx-h-new-apps"))),
-            SourceShelf("Popular apps", parseShelfCards(sectionHtml(home, "nx-h-pop-apps"))),
+            // The feature strip has no term of its own; everything the site lists is the full list
+            // behind it.
+            SourceShelf(
+                "Recommended",
+                parseFeatureCards(sectionHtml(home, "nx-h-recom")),
+                ShelfMore.All,
+            ),
+            SourceShelf(
+                "New games",
+                parseShelfCards(sectionHtml(home, "nx-h-new-games")),
+                ShelfMore.Category(gamesCategory),
+            ),
+            SourceShelf(
+                "Popular games",
+                parseShelfCards(sectionHtml(home, "nx-h-pop-games")),
+                ShelfMore.Category(gamesCategory),
+            ),
+            SourceShelf(
+                "New apps",
+                parseShelfCards(sectionHtml(home, "nx-h-new-apps")),
+                ShelfMore.Category(appsCategory),
+            ),
+            SourceShelf(
+                "Popular apps",
+                parseShelfCards(sectionHtml(home, "nx-h-pop-apps")),
+                ShelfMore.Category(appsCategory),
+            ),
         ).filter { it.apps.isNotEmpty() }
     }
 
@@ -400,20 +437,7 @@ object FivePlaySource : Source {
      * 5play splits its catalogue into games and apps and publishes no genre tree below that, so those
      * two are the categories it has.
      */
-    override suspend fun categories(): List<SourceCategory> = listOf(
-        SourceCategory(
-            source = SourceId.FIVEPLAY,
-            id = "games",
-            name = "Games",
-            url = "${BASE}android/games/",
-        ),
-        SourceCategory(
-            source = SourceId.FIVEPLAY,
-            id = "apps",
-            name = "Apps",
-            url = "${BASE}android/apps/",
-        ),
-    )
+    override suspend fun categories(): List<SourceCategory> = listOf(gamesCategory, appsCategory)
 
     /** The apps of one shelf, read from the page the site lists that shelf on. */
     override suspend fun appsPage(category: SourceCategory, page: Int): SourcePage {
@@ -593,6 +617,14 @@ object GetModsApkSource : Source {
     override val id = SourceId.GETMODSAPK
     private const val BASE = "https://getmodsapk.com"
 
+    /** The whole games shelf, which is the full list behind both game rows on the front page. */
+    private val gamesCategory = SourceCategory(
+        source = SourceId.GETMODSAPK,
+        id = "games",
+        name = "Games",
+        url = "$BASE/games",
+    )
+
     /** The headings the site puts over a card grid on its front page. */
     private val HOME_SHELF_TITLES = setOf("Featured", "Updated Games", "New Games")
 
@@ -713,7 +745,16 @@ object GetModsApkSource : Source {
             val start = match.range.last + 1
             val end = headings.getOrNull(index + 1)?.range?.first ?: html.length
             val apps = parseHomeCards(html.substring(start, end))
-            if (apps.isEmpty()) null else SourceShelf(title, apps)
+            if (apps.isEmpty()) null else {
+                // The two game rows are windows on the games shelf; the featured row is the site's
+                // pick across both shelves, so its full list is everything the sitemap holds.
+                val more = if (title == "Featured") {
+                    ShelfMore.All
+                } else {
+                    ShelfMore.Category(gamesCategory)
+                }
+                SourceShelf(title, apps, more)
+            }
         }
     }
 
@@ -894,6 +935,14 @@ object An1Source : Source {
     override val id = SourceId.AN1
     private const val BASE = "https://an1.com/"
 
+    /** The site's whole games catalogue, the full list behind its *Latest games* row. */
+    private val gamesCategory = SourceCategory(
+        source = SourceId.AN1,
+        id = "games",
+        name = "Games",
+        url = "${BASE}games/",
+    )
+
     /**
      * The site's newest apps.
      *
@@ -910,7 +959,9 @@ object An1Source : Source {
      */
     override suspend fun shelves(): List<SourceShelf> {
         val apps = parseAppLinks(Web.get(BASE)).take(24)
-        return if (apps.isEmpty()) emptyList() else listOf(SourceShelf("Latest games", apps))
+        return if (apps.isEmpty()) emptyList() else {
+            listOf(SourceShelf("Latest games", apps, ShelfMore.Category(gamesCategory)))
+        }
     }
 
     /** The site's own genres, as the links its own menu carries. */

@@ -828,6 +828,7 @@
     <string name="feed_trending">Trending in %1$s this week</string>
     <string name="feed_most_viewed">Most viewed in %1$s</string>
     <string name="feed_categories">Categories</string>
+    <string name="feed_view_all">View all</string>
     <string name="feed_featured">Featured</string>
 
     <!-- Settings, cut into categories instead of one long form. -->
