@@ -480,10 +480,23 @@
 
     <!-- The Special pack: painted anime art for the picture and the cover. -->
     <string name="special_title">Special</string>
-    <string name="special_faces_note">Thirty anime, thirty posters each. Tap one to open its portraits.</string>
+    <string name="special_faces_note">Thirty anime, thirty posters each. Tap one to open its portraits. Hold one to delete the set.</string>
     <string name="special_faces_gallery">Thirty portraits, cropped square. The one you tap is the picture.</string>
-    <string name="special_covers_note">Thirty anime, thirty posters each. Tap one to open its banners.</string>
+    <string name="special_covers_note">Thirty anime, thirty posters each. Tap one to open its banners. Hold one to delete the set.</string>
     <string name="special_covers_gallery">Thirty banners, cropped wide. The one you tap is the cover.</string>
+<string name="a11y_hold_delete">Hold to delete</string>
+<string name="special_delete_title">Delete posters</string>
+<string name="special_delete_count">Delete %1$d</string>
+<string name="special_delete_body">Faded posters stay in both catalogues with a download mark. If the profile is wearing one, it moves to the nearest poster of the same anime.</string>
+<string name="special_select_all">All</string>
+<string name="special_select_none">None</string>
+<string name="special_download_missing">Download %1$d deleted posters from GitHub</string>
+<string name="special_download_one">Download poster %1$d from GitHub</string>
+<string name="special_download_retry">Retry</string>
+<string name="special_photo_delete_title">Delete your photo?</string>
+<string name="special_photo_delete_body">The cropped file is deleted from this phone. It cannot be downloaded back, because it is yours rather than the pack\'s.</string>
+<string name="special_cover_photo_delete_body">The cropped cover is deleted from this phone and the House cover takes its place. It cannot be downloaded back, because it is yours rather than the pack\'s.</string>
+<string name="special_photo_delete">Delete photo</string>
     <string name="special_1">Naruto</string>
     <string name="special_2">One Piece</string>
     <string name="special_3">Attack on Titan</string>

@@ -34,6 +34,7 @@ fun CoverArt(
     photo: Bitmap?,
     modifier: Modifier = Modifier,
     poster: Int = 0,
+    artPx: Int = 640,
 ) {
     if (photo != null) {
         Image(
@@ -44,14 +45,14 @@ fun CoverArt(
         )
         return
     }
-    val art = style.poster(poster)
-    if (art != null) {
+    val anime = style.anime
+    if (anime != null) {
         // A painted cover is a bitmap, and the slot is wide at every size it appears in, so the crop
         // is the same in the 66 dp tile and behind the profile.
-        Image(
-            painter = painterResource(art),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
+        PackPoster(
+            anime = anime,
+            poster = poster,
+            targetPx = artPx,
             modifier = modifier.fillMaxSize(),
         )
         return

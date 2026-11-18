@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -47,6 +48,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -63,6 +65,8 @@ import dev.aurastore.store.data.AvatarStore
 import dev.aurastore.store.data.CUSTOM_AVATAR
 import dev.aurastore.store.data.CoverStore
 import dev.aurastore.store.data.CoverStyle
+import dev.aurastore.store.data.PackInstaller
+import dev.aurastore.store.data.PackLibrary
 import dev.aurastore.store.data.SpecialAnime
 import dev.aurastore.store.data.Settings
 import dev.aurastore.store.data.StoreUsage
@@ -71,6 +75,12 @@ import dev.aurastore.store.data.UsageAccess
 import dev.aurastore.store.data.UsageReport
 import dev.aurastore.store.data.Wishlist
 import dev.aurastore.store.data.sources.SourceApp
+import dev.aurastore.store.ui.profile.ConfirmDeleteDialog
+import dev.aurastore.store.ui.profile.DeletePostersDialog
+import dev.aurastore.store.ui.profile.PackBadge
+import dev.aurastore.store.ui.profile.PackDeletedPoster
+import dev.aurastore.store.ui.profile.PackDownloadAll
+import dev.aurastore.store.ui.profile.missingOf
 import dev.aurastore.store.download.DownloadEngine
 import dev.aurastore.store.download.DownloadItem
 import dev.aurastore.store.download.DownloadState
@@ -985,9 +995,21 @@ private fun CoverPicker(
     onCustom: () -> Unit,
     onGallery: () -> Unit,
 ) {
+    val context = LocalContext.current
     // Which anime's gallery is open inside the card. The pack is thirty doors, each with thirty
     // banners behind it: one tile per anime is the only list that stays readable at this size.
     var openAnime by remember { mutableStateOf<SpecialAnime?>(null) }
+    val removed by PackLibrary.removed.collectAsStateWithLifecycle()
+    val installs by PackInstaller.state.collectAsStateWithLifecycle()
+    // Every card stays in the catalogue: one whose banners were all taken off is the door to its
+    // thirty holes, which is where the installer lives.
+    val facesByAnime = remember(removed) {
+        SpecialAnime.entries.associateWith { PackLibrary.visible(it).firstOrNull() }
+    }
+    var deleting by remember { mutableStateOf<Pair<SpecialAnime, Set<Int>>?>(null) }
+    var deletePhoto by remember { mutableStateOf(false) }
+    val hold = stringResource(R.string.a11y_hold_delete)
+    val open = openAnime
     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         // The Special pack sits under its own header rather than as more drawn-looking tiles:
         // a painted banner and a drawing are two kinds of cover, and the label says which is which.
@@ -1024,6 +1046,8 @@ private fun CoverPicker(
                     photo = photo,
                     selected = custom,
                     onClick = onCustom,
+                    onLongClick = { deletePhoto = true },
+                    onLongClickLabel = hold,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -1034,12 +1058,17 @@ private fun CoverPicker(
                 glyph = Glyph.Grid,
             )
         }
-        Text(
-            stringResource(R.string.special_title),
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(top = 8.dp),
-        )
-        val open = openAnime
+        Row(
+            Modifier.fillMaxWidth().padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(R.string.special_title),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f),
+            )
+            PackDownloadAll()
+        }
         if (open == null) {
             Text(
                 stringResource(R.string.special_covers_note),
@@ -1052,14 +1081,33 @@ private fun CoverPicker(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { anime ->
                         val entry = CoverStyle.forAnime(anime)
+                        val face = facesByAnime[anime]
                         CoverCell(
                             label = stringResource(anime.label),
                             style = entry,
+                            poster = face ?: 0,
                             photo = null,
                             selected = !custom && entry == style,
                             onClick = { openAnime = anime },
+                            onLongClick = { deleting = anime to PackLibrary.visible(anime).toSet() },
+                            onLongClickLabel = hold,
                             modifier = Modifier.weight(1f),
                             labelLines = 2,
+                            faded = face == null,
+                            overlay = {
+                                PackBadge(
+                                    missing = missingOf(anime),
+                                    install = installs[anime.id],
+                                    onClick = {
+                                        PackInstaller.install(
+                                            context,
+                                            anime,
+                                            PackLibrary.removedIn(anime),
+                                        )
+                                    },
+                                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
+                                )
+                            },
                         )
                     }
                     repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
@@ -1067,6 +1115,7 @@ private fun CoverPicker(
             }
         } else {
             val entry = CoverStyle.forAnime(open)
+            val gone = remember(removed, open) { PackLibrary.removedIn(open) }
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -1087,25 +1136,68 @@ private fun CoverPicker(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                if (gone.isNotEmpty()) {
+                    PackBadge(
+                        missing = gone.size,
+                        install = installs[open.id],
+                        onClick = { PackInstaller.install(context, open, gone) },
+                    )
+                }
             }
-            open.posters.toList().chunked(3).forEachIndexed { rowIndex, row ->
+            open.posters.indices.chunked(3).forEach { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    row.forEachIndexed { column, _ ->
-                        val index = rowIndex * 3 + column
-                        CoverCell(
-                            label = "${index + 1}",
-                            style = entry,
-                            poster = index,
-                            photo = null,
-                            selected = !custom && entry == style && poster == index,
-                            onClick = { onStyle(entry, index) },
-                            modifier = Modifier.weight(1f),
-                        )
+                    row.forEach { index ->
+                        if (PackLibrary.isRemoved(open, index)) {
+                            PackDeletedPoster(
+                                anime = open,
+                                poster = index,
+                                label = "${index + 1}",
+                                install = installs[open.id],
+                                onClick = { PackInstaller.install(context, open, listOf(index)) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        } else {
+                            CoverCell(
+                                label = "${index + 1}",
+                                style = entry,
+                                poster = index,
+                                photo = null,
+                                selected = !custom && entry == style && poster == index,
+                                onClick = { onStyle(entry, index) },
+                                onLongClick = { deleting = open to setOf(index) },
+                                onLongClickLabel = hold,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
                     }
                     repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         }
+    }
+
+    deleting?.let { (anime, initial) ->
+        DeletePostersDialog(
+            anime = anime,
+            initial = initial,
+            onDismiss = { deleting = null },
+            onDelete = { posters ->
+                PackLibrary.remove(context, anime, posters)
+                deleting = null
+            },
+        )
+    }
+    if (deletePhoto) {
+        ConfirmDeleteDialog(
+            title = R.string.special_photo_delete_title,
+            body = R.string.special_cover_photo_delete_body,
+            confirm = R.string.special_photo_delete,
+            onDismiss = { deletePhoto = false },
+            onConfirm = {
+                PackLibrary.deleteCoverPhoto(context)
+                deletePhoto = false
+            },
+        )
     }
 }
 
@@ -1161,9 +1253,17 @@ private fun CoverCell(
     modifier: Modifier = Modifier,
     poster: Int = 0,
     labelLines: Int = 1,
+    onLongClick: (() -> Unit)? = null,
+    onLongClickLabel: String? = null,
+    faded: Boolean = false,
+    overlay: @Composable BoxScope.() -> Unit = {},
 ) {
     Column(
-        modifier.playClickable(onClick = onClick),
+        modifier.playClickable(
+            onClick = onClick,
+            onLongClick = onLongClick,
+            onLongClickLabel = onLongClickLabel,
+        ),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
@@ -1183,7 +1283,15 @@ private fun CoverCell(
                     },
                 ),
         ) {
-            CoverArt(style = style, photo = photo, poster = poster, modifier = Modifier.fillMaxSize())
+            CoverArt(
+                style = style,
+                photo = photo,
+                poster = poster,
+                artPx = 320,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(if (faded) Modifier.alpha(0.24f) else Modifier),
+            )
             if (selected) {
                 Surface(
                     shape = CircleShape,
@@ -1199,6 +1307,7 @@ private fun CoverCell(
                     }
                 }
             }
+            overlay()
         }
         Text(
             label,

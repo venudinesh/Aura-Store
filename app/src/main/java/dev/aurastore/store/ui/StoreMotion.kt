@@ -19,6 +19,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -100,12 +101,32 @@ fun Modifier.playPressed(source: MutableInteractionSource, pressedScale: Float =
     }
 }
 
-/** [clickable] plus [playPressed] over one interaction source, so a call site stays one line. */
+/**
+ * [clickable] plus [playPressed] over one interaction source, so a call site stays one line.
+ *
+ * [onLongClick] is the hold: on the pack it starts a deletion rather than choosing a picture, so the
+ * press still takes the control down first and the label says what the hold will do.
+ */
 @Composable
-fun Modifier.playClickable(onClick: () -> Unit, pressedScale: Float = 0.97f): Modifier {
+fun Modifier.playClickable(
+    onClick: () -> Unit,
+    pressedScale: Float = 0.97f,
+    onLongClick: (() -> Unit)? = null,
+    onLongClickLabel: String? = null,
+): Modifier {
     val source = remember { MutableInteractionSource() }
-    return playPressed(source, pressedScale)
-        .clickable(interactionSource = source, indication = LocalIndication.current, onClick = onClick)
+    val press = playPressed(source, pressedScale)
+    return if (onLongClick == null) {
+        press.clickable(interactionSource = source, indication = LocalIndication.current, onClick = onClick)
+    } else {
+        press.combinedClickable(
+            interactionSource = source,
+            indication = LocalIndication.current,
+            onLongClickLabel = onLongClickLabel,
+            onLongClick = onLongClick,
+            onClick = onClick,
+        )
+    }
 }
 
 /**

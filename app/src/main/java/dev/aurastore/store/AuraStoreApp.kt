@@ -11,6 +11,7 @@ import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import dev.aurastore.store.auto.AutoUpdate
 import dev.aurastore.store.data.Settings
+import dev.aurastore.store.data.PackLibrary
 import dev.aurastore.store.data.Wishlist
 import dev.aurastore.store.download.DownloadEngine
 import dev.aurastore.store.install.PackageEventReceiver
@@ -37,6 +38,7 @@ class AuraStoreApp : Application(), SingletonImageLoader.Factory {
         // The auto-update policy has to run whether or not a screen is open, so its scheduling lives
         // with the process rather than with the You tab that used to be the only thing honouring it.
         Settings.load(this)
+        PackLibrary.load(this)
         Wishlist.load(this)
         PlayMotion.syncFrom(this)
         AutoUpdate.schedule(this)

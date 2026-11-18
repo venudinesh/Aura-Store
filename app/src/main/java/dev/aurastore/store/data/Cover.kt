@@ -106,4 +106,11 @@ object CoverStore {
         _version.value += 1
         true
     }.getOrDefault(false)
+
+    /** Deletes the cropped photograph, answering whether there was a file to delete. */
+    fun clear(context: Context): Boolean {
+        val gone = runCatching { file(context).delete() }.getOrDefault(false)
+        if (gone) _version.value += 1
+        return gone
+    }
 }

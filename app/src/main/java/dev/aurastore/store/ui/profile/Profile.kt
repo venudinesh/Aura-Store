@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -41,6 +42,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.core.graphics.createBitmap
@@ -58,7 +60,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -75,6 +76,8 @@ import dev.aurastore.store.data.AvatarStore
 import dev.aurastore.store.data.CUSTOM_AVATAR
 import dev.aurastore.store.data.GameFace
 import dev.aurastore.store.data.AvatarFrame
+import dev.aurastore.store.data.PackInstaller
+import dev.aurastore.store.data.PackLibrary
 import dev.aurastore.store.data.SpecialAnime
 import dev.aurastore.store.data.SpecialPick
 import dev.aurastore.store.theme.PlayMotion
@@ -146,10 +149,11 @@ fun ProfilePicture(
 
                 face != null -> Canvas(Modifier.fillMaxSize()) { drawFace(face) }
 
-                special != null -> Image(
-                    painter = painterResource(special.art),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
+                special != null -> PackPoster(
+                    anime = special.anime,
+                    poster = special.poster,
+                    targetPx = with(LocalDensity.current) { size.toPx().roundToInt() }
+                        .coerceAtLeast(160) * 2,
                     modifier = Modifier.fillMaxSize(),
                 )
 
@@ -194,7 +198,8 @@ fun ProfilePicture(
  *
  * The drawn faces are the defaults, drawn rather than fetched, so a fresh install has a full set with
  * no network and no storage. The Special pack is the painted set. The gallery row is the only way out
- * of both sets, and a long press is not needed for anything: one tap chooses, one tap leaves.
+ * of both sets, and a long press is the other choice the sheet carries: hold a face to take it off the
+ * shelf, which is a different question from which one to wear and therefore a different gesture.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -204,11 +209,27 @@ fun AvatarPicker(
     onPick: (String?) -> Unit,
     onGallery: () -> Unit,
 ) {
+    val context = LocalContext.current
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     // Which anime's gallery is open. The pack is thirty doors, not nine hundred cells: a sheet that
     // listed every poster at once would be a wall of thumbnails with no way to tell whose it was.
     var openAnime by remember { mutableStateOf<SpecialAnime?>(null) }
     val picked = remember(current) { SpecialPick.from(current) }
+    val removed by PackLibrary.removed.collectAsStateWithLifecycle()
+    val installs by PackInstaller.state.collectAsStateWithLifecycle()
+    val avatarVersion by AvatarStore.version.collectAsStateWithLifecycle()
+    // The face each anime wears as its door: the first poster still on the shelf. The catalogue keeps
+    // all thirty cards either way, because a card whose art is all gone is the door to its holes.
+    val facesByAnime = remember(removed) {
+        SpecialAnime.entries.associateWith { PackLibrary.visible(it).firstOrNull() }
+    }
+    val photo = remember(avatarVersion) {
+        if (AvatarStore.file(context).isFile) AvatarStore.load(context) else null
+    }
+    var deleting by remember { mutableStateOf<Pair<SpecialAnime, Set<Int>>?>(null) }
+    var deletePhoto by remember { mutableStateOf(false) }
+    val hold = stringResource(R.string.a11y_hold_delete)
+    val open = openAnime
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
         Column(
             Modifier
@@ -282,16 +303,46 @@ fun AvatarPicker(
                     repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
+            // The user's own square is in the same set as the drawn faces: it is worn in the same
+            // circle, and it is the one picture here whose file a hold can actually delete.
+            photo?.let { square ->
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    FaceCell(
+                        label = stringResource(R.string.profile_cover_custom),
+                        selected = current == CUSTOM_AVATAR,
+                        onClick = { onPick(CUSTOM_AVATAR) },
+                        onLongClick = { deletePhoto = true },
+                        onLongClickLabel = hold,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Image(
+                            bitmap = square.asImageBitmap(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.size(56.dp).clip(CircleShape),
+                        )
+                    }
+                    repeat(3) { Spacer(Modifier.weight(1f)) }
+                }
+            }
             // The Special pack is its own category rather than more cells in the same row: the
             // drawn set is the house's own, and a painted face is a different kind of choice.
             HorizontalDivider(Modifier.padding(vertical = 10.dp))
-            val open = openAnime
             if (open == null) {
-                Text(
-                    stringResource(R.string.special_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                )
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        stringResource(R.string.special_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    PackDownloadAll()
+                }
                 Text(
                     stringResource(R.string.special_faces_note),
                     style = MaterialTheme.typography.bodySmall,
@@ -301,6 +352,8 @@ fun AvatarPicker(
                 // Three columns, not four: a title like "Fullmetal Alchemist" needs the room, and the
                 // sheet scrolls either way. A card opens the anime rather than wearing its first
                 // poster: the choice being offered is one of thirty, not whichever one is on top.
+                // A hold takes the collection instead, which is what a card is the handle for, and
+                // the badge is the set's download mark when some of its posters are faded.
                 SpecialAnime.entries.chunked(3).forEach { row ->
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
@@ -312,13 +365,33 @@ fun AvatarPicker(
                                 labelLines = 2,
                                 selected = picked?.anime == anime,
                                 onClick = { openAnime = anime },
+                                onLongClick = { deleting = anime to PackLibrary.visible(anime).toSet() },
+                                onLongClickLabel = hold,
+                                overlay = {
+                                    PackBadge(
+                                        missing = missingOf(anime),
+                                        install = installs[anime.id],
+                                        onClick = {
+                                            PackInstaller.install(
+                                                context,
+                                                anime,
+                                                PackLibrary.removedIn(anime),
+                                            )
+                                        },
+                                        modifier = Modifier.align(Alignment.TopEnd),
+                                    )
+                                },
                                 modifier = Modifier.weight(1f),
                             ) {
-                                Image(
-                                    painter = painterResource(anime.posters.first()),
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.size(56.dp).clip(CircleShape),
+                                val face = facesByAnime[anime]
+                                PackPoster(
+                                    anime = anime,
+                                    poster = face ?: 0,
+                                    targetPx = 320,
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(CircleShape)
+                                        .then(if (face == null) Modifier.alpha(0.24f) else Modifier),
                                 )
                             }
                         }
@@ -326,6 +399,7 @@ fun AvatarPicker(
                     }
                 }
             } else {
+                val gone = remember(removed, open) { PackLibrary.removedIn(open) }
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -346,28 +420,53 @@ fun AvatarPicker(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    if (gone.isNotEmpty()) {
+                        PackBadge(
+                            missing = gone.size,
+                            install = installs[open.id],
+                            onClick = { PackInstaller.install(context, open, gone) },
+                        )
+                    }
                 }
-                // Thirty posters, three to a row, each drawn in the circle the picture is worn in:
-                // the cell is the crop, so what is tapped is what the profile shows.
-                open.posters.toList().chunked(3).forEachIndexed { rowIndex, row ->
+                // Thirty slots, three to a row, each drawn in the circle the picture is worn in: the
+                // cell is the crop, so what is tapped is what the profile shows. The numbers are the
+                // poster's place in the gallery, so deleting 7 and 12 leaves 8 and 13 numbered as
+                // they always were, and the slots they leave are the installer, one poster at a time.
+                open.posters.indices.chunked(3).forEach { row ->
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp),
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        row.forEachIndexed { column, art ->
-                            val index = rowIndex * 3 + column
-                            FaceCell(
-                                label = "${index + 1}",
-                                selected = picked == SpecialPick(open, index),
-                                onClick = { onPick(SpecialPick(open, index).choice) },
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                Image(
-                                    painter = painterResource(art),
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.size(56.dp).clip(CircleShape),
+                        row.forEach { index ->
+                            if (PackLibrary.isRemoved(open, index)) {
+                                PackDeletedPoster(
+                                    anime = open,
+                                    poster = index,
+                                    label = "${index + 1}",
+                                    install = installs[open.id],
+                                    onClick = {
+                                        PackInstaller.install(context, open, listOf(index))
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = CircleShape,
+                                    size = 56.dp,
                                 )
+                            } else {
+                                FaceCell(
+                                    label = "${index + 1}",
+                                    selected = picked == SpecialPick(open, index),
+                                    onClick = { onPick(SpecialPick(open, index).choice) },
+                                    onLongClick = { deleting = open to setOf(index) },
+                                    onLongClickLabel = hold,
+                                    modifier = Modifier.weight(1f),
+                                ) {
+                                    PackPoster(
+                                        anime = open,
+                                        poster = index,
+                                        targetPx = 320,
+                                        modifier = Modifier.size(56.dp).clip(CircleShape),
+                                    )
+                                }
                             }
                         }
                         repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
@@ -375,6 +474,30 @@ fun AvatarPicker(
                 }
             }
         }
+    }
+
+    deleting?.let { (anime, initial) ->
+        DeletePostersDialog(
+            anime = anime,
+            initial = initial,
+            onDismiss = { deleting = null },
+            onDelete = { posters ->
+                PackLibrary.remove(context, anime, posters)
+                deleting = null
+            },
+        )
+    }
+    if (deletePhoto) {
+        ConfirmDeleteDialog(
+            title = R.string.special_photo_delete_title,
+            body = R.string.special_photo_delete_body,
+            confirm = R.string.special_photo_delete,
+            onDismiss = { deletePhoto = false },
+            onConfirm = {
+                PackLibrary.deleteAvatarPhoto(context)
+                deletePhoto = false
+            },
+        )
     }
 }
 
@@ -385,10 +508,19 @@ private fun FaceCell(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     labelLines: Int = 1,
+    onLongClick: (() -> Unit)? = null,
+    onLongClickLabel: String? = null,
+    overlay: @Composable BoxScope.() -> Unit = {},
     art: @Composable () -> Unit,
 ) {
     Column(
-        modifier.playClickable(onClick = onClick).padding(vertical = 4.dp),
+        modifier
+            .playClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+                onLongClickLabel = onLongClickLabel,
+            )
+            .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
@@ -405,6 +537,7 @@ private fun FaceCell(
             contentAlignment = Alignment.Center,
         ) {
             art()
+            overlay()
         }
         Text(
             label,

@@ -86,6 +86,13 @@ object AvatarStore {
         true
     }.getOrDefault(false)
 
+    /** Deletes the cropped square, answering whether there was a file to delete. */
+    fun clear(context: Context): Boolean {
+        val gone = runCatching { file(context).delete() }.getOrDefault(false)
+        if (gone) _version.value += 1
+        return gone
+    }
+
     /**
      * Reads a gallery image at up to [max] pixels on its long side, honouring the EXIF rotation.
      *
