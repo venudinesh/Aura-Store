@@ -6,12 +6,12 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The Special pack: thirty anime, thirty posters each, and the names a choice is stored under. */
+/** The Special pack: thirty-one anime, thirty posters each, and the names a choice is stored under. */
 class SpecialTest {
 
     @Test
     fun `every anime holds thirty posters and ids that match their number`() {
-        assertEquals(30, SpecialAnime.entries.size)
+        assertEquals(31, SpecialAnime.entries.size)
         SpecialAnime.entries.forEachIndexed { index, anime ->
             assertEquals("${index + 1}", anime.id)
             assertEquals(anime.name, 30, anime.posters.size)
@@ -35,6 +35,7 @@ class SpecialTest {
         assertEquals(SpecialAnime.NARUTO, SpecialPick.from("special:1")?.anime)
         assertEquals(0, SpecialPick.from("special:1")?.poster)
         assertEquals(SpecialPick(SpecialAnime.DANDADAN, 0), SpecialPick.from("special:30"))
+        assertEquals(SpecialPick(SpecialAnime.JOJO, 0), SpecialPick.from("special:31"))
     }
 
     @Test

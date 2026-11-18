@@ -16,9 +16,9 @@ import kotlinx.coroutines.flow.asStateFlow
  * The picture behind the profile.
  *
  * Four of them are drawn in code, so a fresh install has a cover without a gallery visit and the art
- * follows the phone's own density. The thirty in the Special pack are painted art from other hands,
- * each an anime with a gallery of thirty posters shipped at 1024 x 576 in `drawable-nodpi`. The last
- * is the user's photograph, kept as a file beside the avatar rather than in preferences.
+ * follows the phone's own density. The thirty-one in the Special pack are painted art from other
+ * hands, each an anime with a gallery of thirty posters shipped at 1024 x 576 in `drawable-nodpi`.
+ * The last is the user's photograph, kept as a file beside the avatar rather than in preferences.
  */
 enum class CoverStyle(
     val id: String,
@@ -60,6 +60,7 @@ enum class CoverStyle(
     SPECIAL_28("special-28", R.string.special_28, R.string.special_covers_note, SpecialAnime.BLUE_LOCK),
     SPECIAL_29("special-29", R.string.special_29, R.string.special_covers_note, SpecialAnime.CODE_GEASS),
     SPECIAL_30("special-30", R.string.special_30, R.string.special_covers_note, SpecialAnime.DANDADAN),
+    SPECIAL_31("special-31", R.string.special_31, R.string.special_covers_note, SpecialAnime.JOJO),
     ;
 
     /** True for the painted pack: [CoverArt] reads a bitmap instead of drawing. */

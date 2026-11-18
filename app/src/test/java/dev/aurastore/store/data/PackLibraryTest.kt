@@ -60,8 +60,8 @@ class PackLibraryTest {
         val names = SpecialAnime.entries.flatMap { anime ->
             anime.posters.indices.map { PackArt.name(anime.id, it) }
         }
-        assertEquals(900, names.size)
-        assertEquals(900, names.toSet().size)
+        assertEquals(930, names.size)
+        assertEquals(930, names.toSet().size)
         assertFalse(names.any { it.contains(":") })
     }
 }

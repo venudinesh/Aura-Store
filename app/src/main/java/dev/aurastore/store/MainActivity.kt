@@ -964,6 +964,7 @@ private fun BrandBar(
             choice = avatar,
             size = 36.dp,
             frame = frame,
+            animate = false,
             contentDescription = stringResource(R.string.a11y_account),
             modifier = Modifier.clip(CircleShape).playClickable(onClick = onProfile),
         )

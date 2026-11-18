@@ -2,6 +2,7 @@ package dev.aurastore.store.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -42,6 +43,20 @@ class AvatarFrameTest {
         assertFalse(AvatarFrame.NONE.animated)
         assertTrue(AvatarFrame.EMBER.animated)
         assertTrue(AvatarFrame.ZENITH.animated)
-        assertEquals(38, AvatarFrame.entries.size)
+        assertEquals(69, AvatarFrame.entries.size)
+    }
+
+    @Test
+    fun `every anime in the pack has one ring and no ring has two`() {
+        val anime = AvatarFrame.entries.mapNotNull { it.anime }
+        assertEquals(SpecialAnime.entries.size, anime.size)
+        assertEquals(SpecialAnime.entries.toSet(), anime.toSet())
+        AvatarFrame.entries.filter { it.anime != null }.forEach { frame ->
+            val entry = frame.anime
+            assertNotNull(frame.name, entry)
+            assertEquals(frame.name, entry?.label, frame.label)
+            assertTrue(frame.name, frame.animated)
+            assertTrue(frame.name, frame.id.startsWith("anime-"))
+        }
     }
 }

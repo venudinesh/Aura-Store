@@ -5,7 +5,7 @@ import androidx.annotation.StringRes
 import dev.aurastore.store.R
 
 /**
- * The thirty anime in the Special pack, each with a gallery of thirty posters.
+ * The thirty-one anime in the Special pack, each with a gallery of thirty posters.
  *
  * A poster is a 1024 x 576 JPEG in `drawable-nodpi`. The same file serves both pickers: the cover
  * crops it wide and the profile picture crops the same bitmap square, so one pool per anime gives
@@ -258,6 +258,14 @@ enum class SpecialAnime(
         R.drawable.special_poster_30_16, R.drawable.special_poster_30_17, R.drawable.special_poster_30_18, R.drawable.special_poster_30_19, R.drawable.special_poster_30_20,
         R.drawable.special_poster_30_21, R.drawable.special_poster_30_22, R.drawable.special_poster_30_23, R.drawable.special_poster_30_24, R.drawable.special_poster_30_25,
         R.drawable.special_poster_30_26, R.drawable.special_poster_30_27, R.drawable.special_poster_30_28, R.drawable.special_poster_30_29, R.drawable.special_poster_30_30,
+    )),
+    JOJO("31", R.string.special_31, intArrayOf(
+        R.drawable.special_poster_31_1, R.drawable.special_poster_31_2, R.drawable.special_poster_31_3, R.drawable.special_poster_31_4, R.drawable.special_poster_31_5,
+        R.drawable.special_poster_31_6, R.drawable.special_poster_31_7, R.drawable.special_poster_31_8, R.drawable.special_poster_31_9, R.drawable.special_poster_31_10,
+        R.drawable.special_poster_31_11, R.drawable.special_poster_31_12, R.drawable.special_poster_31_13, R.drawable.special_poster_31_14, R.drawable.special_poster_31_15,
+        R.drawable.special_poster_31_16, R.drawable.special_poster_31_17, R.drawable.special_poster_31_18, R.drawable.special_poster_31_19, R.drawable.special_poster_31_20,
+        R.drawable.special_poster_31_21, R.drawable.special_poster_31_22, R.drawable.special_poster_31_23, R.drawable.special_poster_31_24, R.drawable.special_poster_31_25,
+        R.drawable.special_poster_31_26, R.drawable.special_poster_31_27, R.drawable.special_poster_31_28, R.drawable.special_poster_31_29, R.drawable.special_poster_31_30,
     )),
     ;
 

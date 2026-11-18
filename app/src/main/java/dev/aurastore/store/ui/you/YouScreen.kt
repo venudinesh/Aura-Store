@@ -152,6 +152,14 @@ fun YouScreen(
     var sectionIndex by rememberSaveable { mutableIntStateOf(0) }
     val section = ProfileSection.entries[sectionIndex.coerceIn(0, ProfileSection.entries.lastIndex)]
 
+    // One clock for every ring on this page. Three pictures keeping their own time meant three
+    // whole-page redraws a tick; this way the hero turns, the bar stands still, and the page has
+    // one heartbeat. Ten a second suits a ring this slow.
+    val framePhase = rememberPhaseClock(
+        animate = PlayMotion.enabled,
+        intervalNanos = 100_000_000L,
+    )
+
     val avatar by Settings.avatar.collectAsStateWithLifecycle()
     val frame by Settings.avatarFrame.collectAsStateWithLifecycle()
     val coverStyle by Settings.coverStyle.collectAsStateWithLifecycle()
@@ -242,6 +250,7 @@ fun YouScreen(
                 coverStyle = coverStyle,
                 coverPoster = coverPoster,
                 coverPhoto = coverPhoto,
+                phase = { framePhase.floatValue },
                 onPicture = { pickerOpen = true },
                 onCustomise = { sectionIndex = ProfileSection.CUSTOMISE.ordinal },
             )
@@ -496,6 +505,7 @@ fun YouScreen(
                                 choice = avatar,
                                 size = 64.dp,
                                 frame = frame,
+                                phase = { framePhase.floatValue },
                                 contentDescription = stringResource(R.string.a11y_profile_picture),
                                 modifier = Modifier
                                     .clip(CircleShape)
@@ -630,6 +640,7 @@ private fun ProfileHero(
     coverStyle: CoverStyle,
     coverPoster: Int,
     coverPhoto: Bitmap?,
+    phase: (() -> Float)?,
     onPicture: () -> Unit,
     onCustomise: () -> Unit,
 ) {
@@ -660,6 +671,7 @@ private fun ProfileHero(
                 choice = avatar,
                 size = 78.dp,
                 frame = frame,
+                phase = phase,
                 contentDescription = stringResource(R.string.a11y_profile_picture),
                 modifier = Modifier
                     .align(Alignment.BottomStart)
@@ -932,54 +944,90 @@ private fun progressAction(item: DownloadItem): RowAction = when (item.state) {
     else -> RowAction(ActionKind.DOWNLOADING, item.progress)
 }
 
-/** Eight rings, four to a row, each drawn around the picture the profile actually wears. */
+/** Sixty-nine rings, four to a row, each drawn around the picture the profile actually wears. */
 @Composable
 private fun FramePicker(current: AvatarFrame, choice: String?, onPick: (AvatarFrame) -> Unit) {
-    // One clock for the whole sheet. Thirty-eight transitions would be thirty-eight recompositions
-    // a frame, and a row of rings has no reason to disagree about the time.
-    val phase = rememberPhaseClock(animate = PlayMotion.enabled)
     Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
-        AvatarFrame.entries.chunked(4).forEach { row ->
-            Row(Modifier.fillMaxWidth()) {
-                row.forEach { entry ->
-                    val selected = entry == current
-                    Column(
+        FrameRows(
+            entries = AvatarFrame.entries.filter { it.anime == null },
+            current = current,
+            choice = choice,
+            onPick = onPick,
+        )
+        // The pack rings are one set drawn from one pack: they sit under their own name rather
+        // than mixed through the house rings, which are a different kind of picture.
+        Text(
+            stringResource(R.string.profile_frame_anime),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 10.dp, top = 14.dp, bottom = 2.dp),
+        )
+        FrameRows(
+            entries = AvatarFrame.entries.filter { it.anime != null },
+            current = current,
+            choice = choice,
+            onPick = onPick,
+        )
+    }
+}
+
+@Composable
+private fun FrameRows(
+    entries: List<AvatarFrame>,
+    current: AvatarFrame,
+    choice: String?,
+    onPick: (AvatarFrame) -> Unit,
+) {
+    entries.chunked(4).forEach { row ->
+        Row(Modifier.fillMaxWidth()) {
+            row.forEach { entry ->
+                val selected = entry == current
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .playClickable(onClick = { onPick(entry) })
+                        .padding(vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(
                         Modifier
-                            .weight(1f)
-                            .playClickable(onClick = { onPick(entry) })
-                            .padding(vertical = 6.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
+                            .size(60.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(
+                                if (selected) {
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                                } else {
+                                    Color.Transparent
+                                },
+                            ),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Box(
-                            Modifier
-                                .size(60.dp)
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(
-                                    if (selected) {
-                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
-                                    } else {
-                                        Color.Transparent
-                                    },
-                                ),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            ProfilePicture(choice = choice, size = 48.dp, frame = entry, phase = phase)
-                        }
-                        Text(
-                            stringResource(entry.label),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (selected) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                            maxLines = 1,
-                            modifier = Modifier.padding(top = 2.dp),
+                        // Previews hold still. Sixty-nine rings turning made the sheet redraw the
+                        // page for every tick; the ring that moves is the one worn up top.
+                        ProfilePicture(
+                            choice = choice,
+                            size = 48.dp,
+                            frame = entry,
+                            animate = false,
                         )
                     }
+                    Text(
+                        stringResource(entry.label),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (selected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        // The pack's labels are anime titles: two lines fit "JoJo's Bizarre
+                        // Adventure" where one line clipped it to a guess.
+                        maxLines = 2,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 2.dp, start = 2.dp, end = 2.dp),
+                    )
                 }
-                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
             }
+            repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
         }
     }
 }
@@ -996,8 +1044,8 @@ private fun CoverPicker(
     onGallery: () -> Unit,
 ) {
     val context = LocalContext.current
-    // Which anime's gallery is open inside the card. The pack is thirty doors, each with thirty
-    // banners behind it: one tile per anime is the only list that stays readable at this size.
+    // Which anime's gallery is open inside the card. The pack is thirty-one doors, each with
+    // thirty banners behind it: one tile per anime is the only list that stays readable at this size.
     var openAnime by remember { mutableStateOf<SpecialAnime?>(null) }
     val removed by PackLibrary.removed.collectAsStateWithLifecycle()
     val installs by PackInstaller.state.collectAsStateWithLifecycle()

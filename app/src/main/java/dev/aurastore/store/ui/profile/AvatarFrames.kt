@@ -1,14 +1,12 @@
 package dev.aurastore.store.ui.profile
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableFloatState
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -32,29 +30,41 @@ import kotlin.math.sin
  */
 @Composable
 internal fun rememberFramePhase(frame: AvatarFrame, animate: Boolean): Float =
-    if (!animate || !frame.animated) 0f else rememberPhaseClock()
+    if (!animate || !frame.animated) 0f else rememberPhaseClock().floatValue
 
 /**
- * One turn of the clock, for a grid of frames that should move together.
+ * One turn of the clock, for every ring on a page that should move together.
  *
- * The picker draws thirty-eight tiles around the same picture, and thirty-eight transitions would be
- * thirty-eight recompositions a frame. One clock is read by every tile instead, so the sheet animates
- * as a single sheet.
+ * A picture with its own transition is one whole-window redraw a frame, and a page can wear the
+ * frame three times: the bar, the hero and the row that changes it. This clock is one heartbeat
+ * instead, read from inside each canvas draw, so a tick redraws the rings. It is held to
+ * [intervalNanos] because a ring a thumb wide does not need sixty frames a second and the phone
+ * pays for every one it draws.
  */
 @Composable
-internal fun rememberPhaseClock(animate: Boolean = true): Float {
-    if (!animate) return 0f
-    val transition = rememberInfiniteTransition(label = "avatar-frame")
-    val phase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(14_000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "avatar-frame-phase",
-    )
-    return phase
+internal fun rememberPhaseClock(
+    animate: Boolean = true,
+    intervalNanos: Long = 33_000_000L,
+): MutableFloatState {
+    val clock = remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(animate, intervalNanos) {
+        if (!animate) {
+            clock.floatValue = 0f
+            return@LaunchedEffect
+        }
+        val origin = withFrameNanos { it }
+        var last = 0L
+        while (true) {
+            withFrameNanos { now ->
+                if (now - last >= intervalNanos) {
+                    last = now
+                    // 14 seconds a turn, the pace the house rings have always kept.
+                    clock.floatValue = ((now - origin) / 1_000_000_000f * (360f / 14f)) % 360f
+                }
+            }
+        }
+    }
+    return clock
 }
 
 private val GoldLight = Color(0xFFFFF0C2)
@@ -181,6 +191,14 @@ internal fun DrawScope.drawAvatarFrame(frame: AvatarFrame, phase: Float, scheme:
             color = color.copy(alpha = color.alpha * alpha),
             style = Stroke(width = width, cap = StrokeCap.Round),
         )
+    }
+
+    // The anime rings are painted by their own file: one branch per pack entry, all of them sharing
+    // this radius and this stroke, so a wall of nine in the picker still reads as one set.
+    val anime = frame.anime
+    if (anime != null) {
+        drawAnimeFrame(anime, phase)
+        return
     }
 
     when (frame) {
@@ -807,5 +825,8 @@ internal fun DrawScope.drawAvatarFrame(frame: AvatarFrame, phase: Float, scheme:
                 bead(0f, scheme.primary, stroke * 0.35f, radius - stroke * 3f)
             }
         }
+
+        // The pack rings returned above; nothing else reaches this branch.
+        else -> Unit
     }
 }

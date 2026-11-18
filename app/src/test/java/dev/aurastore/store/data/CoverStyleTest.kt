@@ -33,7 +33,7 @@ class CoverStyleTest {
         assertFalse(CoverStyle.HOUSE.special)
         assertFalse(CoverStyle.INK.special)
         val pack = CoverStyle.entries.filter { it.special }
-        assertEquals(30, pack.size)
+        assertEquals(31, pack.size)
         pack.forEach { style -> assertNotEquals(0, style.art) }
     }
 }

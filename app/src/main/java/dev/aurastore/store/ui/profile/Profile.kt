@@ -108,7 +108,9 @@ fun ProfilePicture(
     frame: AvatarFrame = AvatarFrame.NONE,
     contentDescription: String? = null,
     /** A clock shared by a grid of pictures; null gives this picture its own. */
-    phase: Float? = null,
+    phase: (() -> Float)? = null,
+    /** False holds the ring still: the bar wears the mark without redrawing the page for it. */
+    animate: Boolean = true,
 ) {
     val context = LocalContext.current
     val version by AvatarStore.version.collectAsStateWithLifecycle()
@@ -120,13 +122,13 @@ fun ProfilePicture(
         if (custom) AvatarStore.load(context) else null
     }
     val inset = if (frame == AvatarFrame.NONE) 0.dp else size * 0.078f
-    // The bar copy turns with the header now: a moving ring is the profile's own mark, and a still
-    // one in the bar read as a different picture rather than a smaller one.
+    // The header turns; the bar holds the same ring still. A 36 dp ring turning redrew the whole
+    // page thirty times a second, and nothing at that size showed it.
     val ownPhase = rememberFramePhase(
         frame,
-        animate = PlayMotion.enabled && phase == null,
+        animate = animate && PlayMotion.enabled && phase == null,
     )
-    val framePhase = phase ?: ownPhase
+    val framePhase = phase
     Box(
         modifier
             .size(size)
@@ -188,7 +190,9 @@ fun ProfilePicture(
             }
         }
         if (frame != AvatarFrame.NONE) {
-            Canvas(Modifier.fillMaxSize()) { drawAvatarFrame(frame, framePhase, scheme) }
+            Canvas(Modifier.fillMaxSize()) {
+                drawAvatarFrame(frame, framePhase?.invoke() ?: ownPhase, scheme)
+            }
         }
     }
 }

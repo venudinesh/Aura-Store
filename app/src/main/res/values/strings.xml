@@ -415,6 +415,7 @@
     <string name="a11y_profile_picture">Profile picture</string>
     <string name="profile_frame_title">Frame</string>
     <string name="profile_frame_note">Worn wherever the picture appears.</string>
+    <string name="profile_frame_anime">Anime</string>
     <string name="profile_cover_title">Cover</string>
     <string name="profile_cover_note">Drawn art, anime from the Special pack, or a photo, cropped wide.</string>
     <string name="profile_cover_custom">Your photo</string>
@@ -480,9 +481,9 @@
 
     <!-- The Special pack: painted anime art for the picture and the cover. -->
     <string name="special_title">Special</string>
-    <string name="special_faces_note">Thirty anime, thirty posters each. Tap one to open its portraits. Hold one to delete the set.</string>
+    <string name="special_faces_note">Thirty-one anime, thirty posters each. Tap one to open its portraits. Hold one to delete the set.</string>
     <string name="special_faces_gallery">Thirty portraits, cropped square. The one you tap is the picture.</string>
-    <string name="special_covers_note">Thirty anime, thirty posters each. Tap one to open its banners. Hold one to delete the set.</string>
+    <string name="special_covers_note">Thirty-one anime, thirty posters each. Tap one to open its banners. Hold one to delete the set.</string>
     <string name="special_covers_gallery">Thirty banners, cropped wide. The one you tap is the cover.</string>
 <string name="a11y_hold_delete">Hold to delete</string>
 <string name="special_delete_title">Delete posters</string>
@@ -527,6 +528,7 @@
     <string name="special_28">Blue Lock</string>
     <string name="special_29">Code Geass</string>
     <string name="special_30">Dandadan</string>
+    <string name="special_31">JoJo\'s Bizarre Adventure</string>
 
     <!-- Download notifications -->
     <string name="channel_downloads">Downloads</string>
