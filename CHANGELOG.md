@@ -3,6 +3,41 @@
 All notable changes to Aura Store. The format follows [Keep a Changelog](https://keepachangelog.com/),
 and the project uses `MAJOR.MINOR.PATCH` versions.
 
+## [1.8.0] - 2026-11-19
+
+### Added
+
+- **A new app page.** The catalogue's banner fills the top, the app's mark sits over its lower edge,
+  and the three facts that identify the build share a bordered card. The install card carries the
+  live transfer strip while bytes move, the speed, and the build chooser behind a chevron. About,
+  MOD info, release notes and the app's facts are carded the same way.
+- **A new source picker.** The sheet opens on the app's own art, then one row of sources. Each chip
+  says *Found* with its version, *Default* when Settings names it, looks for the app, or says it is
+  not there. The open source answers with resolved files: size, build, published digest, and a
+  Download button that puts the file in the same queue as the catalogue.
+- **One notification for the whole queue.** A download asks for notifications the first time it
+  starts, so a refusal at launch no longer leaves progress silent forever. One notification follows
+  every transfer: the title counts the packages, the line names the app whose bytes are moving, and
+  the bar covers the queue's total. Updates ride the quiet channel and alert once.
+- **Search answers while a term is typed.** A pause of 300 ms previews the catalogue's instant
+  matches. The Search key still walks every enabled source.
+
+### Changed
+
+- **A list keeps its place.** View-all rails and category pages hand their scroll state back to the
+  shell, so closing a detail returns to the row that opened it. Each tab keeps its page under a
+  detail too.
+- **Cards that arrive mid-scroll arrive settled,** and the shared icon belongs to the card a detail
+  page came from instead of every copy of it.
+
+### Fixed
+
+- **Archive downloads are saved in `Downloads/Aura Store`.** Zip, rar, iso and extensionless files
+  are verified as archives, copied out of the cache and dropped from it. *Save file* warns when the
+  name is already there and never overwrites; saved rows survive an emptied cache.
+- **The build row no longer clips its last line** against the card's rounded corner, and a download
+  taken from the source picker no longer repeats its whole label in the queue row.
+
 ## [1.7.0] - 2026-11-18
 
 ### Added
