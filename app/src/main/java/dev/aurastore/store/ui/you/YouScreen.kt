@@ -3,6 +3,7 @@ package dev.aurastore.store.ui.you
 import android.graphics.Bitmap
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -144,13 +146,24 @@ fun YouScreen(
     modifier: Modifier = Modifier,
     /** Bumped by the shell when the tab already showing is tapped again. */
     scrollTopKey: Int = 0,
+    /** The page's scroll position, owned by the shell so Back from a pushed page returns to it. */
+    listState: LazyListState = rememberLazyListState(),
 ) {
     val context = LocalContext.current
-    val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
     var sectionIndex by rememberSaveable { mutableIntStateOf(0) }
     val section = ProfileSection.entries[sectionIndex.coerceIn(0, ProfileSection.entries.lastIndex)]
+
+    // Customisation is a page inside this tab, not a route, so the shell cannot see it. Without this
+    // handler back falls through to the tab history and leaves You for whichever tab was open
+    // before. The pill row is the page stack here: back returns any other section to the profile.
+    BackHandler(enabled = sectionIndex != ProfileSection.OVERVIEW.ordinal) {
+        sectionIndex = ProfileSection.OVERVIEW.ordinal
+        scope.launch {
+            if (PlayMotion.enabled) listState.animateScrollToItem(0) else listState.scrollToItem(0)
+        }
+    }
 
     // One clock for every ring on this page. Three pictures keeping their own time meant three
     // whole-page redraws a tick; this way the hero turns, the bar stands still, and the page has

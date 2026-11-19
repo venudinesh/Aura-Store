@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
@@ -820,6 +821,8 @@ fun FeedScreen(
     refreshKey: Int = 0,
     /** Bumped by the shell when the tab already showing is tapped again. */
     scrollTopKey: Int = 0,
+    /** The page's scroll position, owned by the shell so Back from a detail returns to the same row. */
+    listState: LazyListState = rememberLazyListState(),
     viewModel: FeedViewModel = viewModel(key = "feed-${kind.name}") { FeedViewModel(kind) },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -827,7 +830,6 @@ fun FeedScreen(
     val enabledSources by Settings.sources.collectAsStateWithLifecycle()
     val servers = remember(enabledSources) { Sources.enabled(enabledSources) }
     val actions = rememberStoreActions()
-    val listState = rememberLazyListState()
 
     LaunchedEffect(kind) { viewModel.start() }
     // A catalogue sync from Settings or the account sheet refreshes whatever tab is showing.

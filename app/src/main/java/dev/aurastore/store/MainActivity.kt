@@ -29,6 +29,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -361,6 +362,14 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
     }
     LaunchedEffect(Unit) { AppUpdater.autoCheck(context) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    // Each tab's list position lives in the shell, not inside the screen. A detail page is pushed over
+    // the tab, and an AnimatedContent screen is disposed while the page is up: a state remembered by
+    // the screen would be forgotten with it, and Back would land at the top of the page instead of
+    // the row that was tapped.
+    val gamesScroll = rememberLazyListState()
+    val appsScroll = rememberLazyListState()
+    val browseScroll = rememberLazyListState()
+    val youScroll = rememberLazyListState()
     // The pushed pages, bottom first. Everything that used to be its own flag lives here now, so back
     // is a pop and "where was I" is the whole list rather than whichever flag was set last.
     var stack by rememberSaveable { mutableStateOf(listOf<String>()) }
@@ -724,6 +733,7 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
                                     onOpenPost = { push(Route.Detail(it)) },
                                     refreshKey = catalogueRefresh,
                                     scrollTopKey = scrollTop,
+                                    listState = gamesScroll,
                                 )
 
                                 1 -> FeedScreen(
@@ -731,6 +741,7 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
                                     onOpenPost = { push(Route.Detail(it)) },
                                     refreshKey = catalogueRefresh,
                                     scrollTopKey = scrollTop,
+                                    listState = appsScroll,
                                 )
 
                                 2 -> SearchScreen(
@@ -750,6 +761,7 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
                                     onOpenListing = { title, query -> push(Route.Listing(title, query)) },
                                     refreshKey = catalogueRefresh,
                                     scrollTopKey = scrollTop,
+                                    listState = browseScroll,
                                 )
 
                                 else -> YouScreen(
@@ -760,6 +772,7 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
                                     onOpenSettings = { push(Route.Settings) },
                                     onOpenAbout = { push(Route.About) },
                                     scrollTopKey = scrollTop,
+                                    listState = youScroll,
                                 )
                             }
                         }
