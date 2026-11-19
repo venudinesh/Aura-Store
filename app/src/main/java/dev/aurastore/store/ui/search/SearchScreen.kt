@@ -76,6 +76,9 @@ import dev.aurastore.store.ui.playEnter
 import dev.aurastore.store.ui.playClickable
 import dev.aurastore.store.ui.rememberStoreActions
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -114,6 +117,12 @@ data class SearchState(
     val generation: Int = 0,
 )
 
+/** The pause after the last keystroke before the preview is asked for. */
+private const val PREVIEW_DELAY_MS = 300L
+
+/** Two letters is where a term starts narrowing the catalogue; one letter matches most of it. */
+private const val PREVIEW_MIN_CHARS = 2
+
 class SearchViewModel : ViewModel() {
 
     private val _state = MutableStateFlow(SearchState())
@@ -121,6 +130,8 @@ class SearchViewModel : ViewModel() {
 
     private var searchJob: Job? = null
     private var moreJob: Job? = null
+    /** The pause after a keystroke before the typed term is asked for. */
+    private var previewJob: Job? = null
 
     /**
      * The pages taken in for the term on screen, and the only place the seen ids live. A new search
@@ -141,37 +152,103 @@ class SearchViewModel : ViewModel() {
         }
     }
 
+    /**
+     * A typed term is asked for on its own, after the typing pauses.
+     *
+     * The wait is the whole point: a request per letter would put "t", "tr" and "tru" on the wire in
+     * the time one word takes, and the answer to the shorter term would land under the longer one.
+     * The rows already on screen stay while the next term is being typed and are replaced when the
+     * new answer arrives, so the list does not flash back to the idle screen at every keystroke.
+     */
     fun onQueryChange(value: String) {
-        // A term that changes is a new question. Keeping the old rows under the new words would put
-        // the wrong query over the right answer, so the answer goes with the edit.
-        val hadAnswer = _state.value.results != null || _state.value.loading
         _state.update { it.copy(query = value) }
-        if (value.isBlank() || hadAnswer) {
-            stop()
-            _state.update {
-                it.copy(
-                    results = null,
-                    loading = false,
-                    loadingMore = false,
-                    hasMorePages = false,
-                    total = null,
-                    moreError = null,
-                    error = null,
-                    otherResults = emptyList(),
-                    otherSearching = false,
-                )
+        previewJob?.cancel()
+        previewJob = null
+        stop()
+        val term = value.trim()
+        when {
+            term.isBlank() -> {
+                clearAnswer()
+                return
             }
+            // One letter matches most of the catalogue. The idle screen is more useful than that
+            // answer, so the preview starts at two letters.
+            term.length < PREVIEW_MIN_CHARS -> {
+                clearAnswer()
+                return
+            }
+        }
+        previewJob = viewModelScope.launch {
+            delay(PREVIEW_DELAY_MS)
+            preview(term)
+        }
+    }
+
+    /**
+     * The catalogue's instant answer for a term still being typed.
+     *
+     * One request, no paging and no other catalogues: the preview is there to put the obvious match
+     * under the field, and the full search across every source waits for the Search key or a tapped
+     * term. That keeps typing cheap even with every source enabled.
+     */
+    private suspend fun preview(term: String) {
+        stop()
+        _state.update { current ->
+            current.copy(
+                loading = true,
+                loadingMore = false,
+                hasMorePages = true,
+                results = null,
+                total = null,
+                moreError = null,
+                error = null,
+                otherResults = emptyList(),
+                otherSearching = false,
+                generation = current.generation + 1,
+            )
+        }
+        val found = runCatching { Api.search(term) }
+        // A cancelled preview can still reach this line because the failure was caught. It must not
+        // write over the search that replaced it, even when that search carries the same term.
+        if (!currentCoroutineContext().isActive) return
+        // The field may have moved on while the request was in flight: an older answer has no place
+        // under a newer term.
+        _state.update { current ->
+            if (current.query.trim() != term) return@update current
+            found.fold(
+                onSuccess = { rows ->
+                    current.copy(
+                        loading = false,
+                        // The instant list is a page of matches, not the end of the ordering. The
+                        // footer stays quiet until a real paged search says where the end is.
+                        hasMorePages = true,
+                        results = rows,
+                        total = null,
+                        error = null,
+                    )
+                },
+                onFailure = { e ->
+                    current.copy(
+                        loading = false,
+                        hasMorePages = false,
+                        error = e.takeUnless { it is CancellationException }?.message.orEmpty(),
+                    )
+                },
+            )
         }
     }
 
     fun search(term: String = _state.value.query) {
-        if (term.isBlank()) return
+        val trimmed = term.trim()
+        if (trimmed.isBlank()) return
+        previewJob?.cancel()
+        previewJob = null
         stop()
         val p = SearchPager()
         pager = p
         _state.update { current ->
             current.copy(
-                query = term,
+                query = trimmed,
                 loading = true,
                 loadingMore = false,
                 hasMorePages = true,
@@ -181,19 +258,19 @@ class SearchViewModel : ViewModel() {
                 error = null,
                 otherResults = emptyList(),
                 otherSearching = true,
-                recent = (listOf(term) + current.recent).distinct().take(6),
+                recent = (listOf(trimmed) + current.recent).distinct().take(6),
                 generation = current.generation + 1,
             )
         }
         searchJob = viewModelScope.launch {
             // Both sources answer for a term and neither one's failure is fatal unless the other has
             // nothing to show either. They start together: the ranked list is what fills the screen first.
-            val ranked = async { runCatching { Api.search(term) } }
-            val first = async { runCatching { Api.searchPage(term, page = 1) } }
+            val ranked = async { runCatching { Api.search(trimmed) } }
+            val first = async { runCatching { Api.searchPage(trimmed, page = 1) } }
             // The other catalogues are asked the same question at the same time. Their answers are a
             // second group under the catalogue's own, not a replacement for it.
             val others = async {
-                runCatching { SourceHub.search(term, Settings.sources.value) }
+                runCatching { SourceHub.search(trimmed, Settings.sources.value) }
             }
             p.seed(ranked.await().getOrNull().orEmpty())
             // Show the best matches while the paged source is still answering, rather than holding a
@@ -249,8 +326,28 @@ class SearchViewModel : ViewModel() {
     }
 
     fun clear() {
+        previewJob?.cancel()
+        previewJob = null
         stop()
-        _state.update { it.copy(query = "", results = null, error = null) }
+        _state.update { it.copy(query = "") }
+        clearAnswer()
+    }
+
+    /** Back to the idle screen: no term's rows, no footer, no site tabs. */
+    private fun clearAnswer() {
+        _state.update {
+            it.copy(
+                results = null,
+                loading = false,
+                loadingMore = false,
+                hasMorePages = false,
+                total = null,
+                moreError = null,
+                error = null,
+                otherResults = emptyList(),
+                otherSearching = false,
+            )
+        }
     }
 
     private fun stop() {
