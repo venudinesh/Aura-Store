@@ -5,33 +5,37 @@ import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -47,23 +51,27 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil3.compose.AsyncImage
 import dev.aurastore.store.R
-import android.content.ClipData
-import android.widget.Toast
 import dev.aurastore.store.data.Api
 import dev.aurastore.store.data.AppState
 import dev.aurastore.store.data.DownloadFile
@@ -73,8 +81,8 @@ import dev.aurastore.store.data.InstalledApps
 import dev.aurastore.store.data.PostDetail
 import dev.aurastore.store.data.PostSummary
 import dev.aurastore.store.data.Settings
-import dev.aurastore.store.data.Wishlist
 import dev.aurastore.store.data.Version
+import dev.aurastore.store.data.Wishlist
 import dev.aurastore.store.download.DownloadEngine
 import dev.aurastore.store.download.DownloadItem
 import dev.aurastore.store.download.DownloadState
@@ -83,16 +91,22 @@ import dev.aurastore.store.install.Obb
 import dev.aurastore.store.install.PlayStore
 import dev.aurastore.store.install.QuickInstall
 import dev.aurastore.store.install.Updates
+import dev.aurastore.store.theme.ArtShape
+import dev.aurastore.store.theme.EmphasizedDecelerateEasing
+import dev.aurastore.store.theme.EmphasizedEasing
+import dev.aurastore.store.theme.PlayMotion
+import dev.aurastore.store.theme.PillShape
+import dev.aurastore.store.theme.RatingStar
+import dev.aurastore.store.theme.StandardAccelerateEasing
+import dev.aurastore.store.theme.StandardEasing
 import dev.aurastore.store.ui.ActionKind
-import dev.aurastore.store.ui.ArtImage
-import dev.aurastore.store.ui.LocalNavBarInset
 import dev.aurastore.store.ui.AppCard
+import dev.aurastore.store.ui.ArtImage
 import dev.aurastore.store.ui.Glyph
 import dev.aurastore.store.ui.GlyphIcon
-import dev.aurastore.store.ui.InfoCard
 import dev.aurastore.store.ui.InfoRow
 import dev.aurastore.store.ui.InstallButton
-import dev.aurastore.store.ui.NoticeCard
+import dev.aurastore.store.ui.LocalNavBarInset
 import dev.aurastore.store.ui.PlayBadge
 import dev.aurastore.store.ui.PlayChip
 import dev.aurastore.store.ui.PostIcon
@@ -111,13 +125,6 @@ import dev.aurastore.store.ui.playClickable
 import dev.aurastore.store.ui.rememberStoreActions
 import dev.aurastore.store.ui.skeletonPulse
 import dev.aurastore.store.ui.sharedIcon
-import dev.aurastore.store.theme.ArtShape
-import dev.aurastore.store.theme.EmphasizedDecelerateEasing
-import dev.aurastore.store.theme.EmphasizedEasing
-import dev.aurastore.store.theme.PlayMotion
-import dev.aurastore.store.theme.StandardAccelerateEasing
-import dev.aurastore.store.theme.StandardEasing
-import dev.aurastore.store.theme.RatingStar
 import dev.aurastore.store.ui.stripHtml
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -125,6 +132,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import android.content.ClipData
+import android.widget.Toast
 
 /** One selectable artefact: a version label plus one of its files. */
 data class Artefact(val versionLabel: String, val file: DownloadFile) {
@@ -266,193 +275,151 @@ fun DetailScreen(
             Updates.isNewer(installedBuild, detail?.summary?.latestVersion) &&
                 Updates.isNewer(installedBuild, offeredBuild)
         }
+    val action = actionFor(installRecord, item)
+    val chosen = state.artefacts.getOrNull(state.selected)
 
-    LazyColumn(modifier, contentPadding = PaddingValues(bottom = 32.dp + LocalNavBarInset.current)) {
-        // ---------------------------------------------------------------- Play's own top bar
-        item {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface,
-                    modifier = Modifier.size(44.dp).clip(CircleShape).playClickable(onClick = onBack),
-                ) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        GlyphIcon(Glyph.Back, size = 22.dp, label = stringResource(R.string.a11y_back))
-                    }
-                }
-                Spacer(Modifier.weight(1f))
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .playClickable(
-                            onClick = {
-                                val summary = detail?.summary
-                                val added = Wishlist.toggle(
-                                    context,
-                                    Wishlist.post(
-                                        postId = postId,
-                                        title = summary?.title ?: shareFallback,
-                                        iconUrl = summary?.imageUrl,
-                                        subtitle = summary?.publisher,
-                                        size = summary?.size,
-                                    ),
-                                )
-                                Toast.makeText(
-                                    context,
-                                    if (added) wishAdded else wishRemoved,
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                            },
+    // One gesture for the whole page: the big pill and the build row resolve the same decision, so
+    // the two can never disagree about what a tap does.
+    val primaryClick: () -> Unit = {
+        when {
+            item?.state == DownloadState.READY && item.uninstallFirst -> actions.uninstallFirst(item)
+            item?.state == DownloadState.READY ||
+                item?.state == DownloadState.NEEDS_PERMISSION ||
+                item?.state == DownloadState.AWAITING_CONFIRMATION -> actions.install(item)
+            item?.state == DownloadState.PAUSED -> actions.resume(item)
+            item?.state == DownloadState.FAILED -> actions.resume(item)
+            action.kind == ActionKind.OPEN -> {
+                // The queue's own package name covers an install that finished through the system
+                // sheet before its record was written.
+                val pkg = installRecord?.packageName ?: item?.apkPackage
+                if (pkg != null) Installer.launch(context, pkg)
+            }
+            item != null && item.isActive -> DownloadEngine.toggle(context, item.id)
+            chosen != null && !QuickInstall.runsOn(chosen.file, Api.deviceAbis) ->
+                Toast.makeText(context, R.string.toast_build_not_for_device, Toast.LENGTH_LONG).show()
+            chosen != null && detail != null ->
+                actions.enqueue(detail.summary, chosen.versionLabel, chosen.file, detail)
+            detail != null -> actions.enqueue(detail.summary)
+        }
+    }
+
+    LazyColumn(
+        modifier,
+        contentPadding = PaddingValues(bottom = 40.dp + LocalNavBarInset.current),
+    ) {
+        // ------------------------------------------------------------- art, identity, numbers
+        item(key = "hero") {
+            val post = detail?.summary
+            DetailHero(
+                post = post,
+                postId = postId,
+                wished = wished,
+                onBack = onBack,
+                onWishlist = {
+                    val summary = detail?.summary
+                    val added = Wishlist.toggle(
+                        context,
+                        Wishlist.post(
+                            postId = postId,
+                            title = summary?.title ?: shareFallback,
+                            iconUrl = summary?.imageUrl,
+                            subtitle = summary?.publisher,
+                            size = summary?.size,
                         ),
-                ) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        GlyphIcon(
-                            Glyph.Heart,
-                            size = 22.dp,
-                            filled = wished,
-                            tint = if (wished) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                            label = stringResource(
-                                if (wished) R.string.a11y_wishlist_remove else R.string.a11y_wishlist_add,
-                            ),
-                        )
-                    }
-                }
-                Spacer(Modifier.width(4.dp))
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .playClickable(
+                    )
+                    Toast.makeText(context, if (added) wishAdded else wishRemoved, Toast.LENGTH_SHORT)
+                        .show()
+                },
+                onShare = {
+                    Share.app(context, detail?.summary?.title ?: shareFallback, postId)
+                },
+                onMore = { menuOpen = true },
+                menu = {
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        // Only when there is an update to dismiss, and only until it has been dismissed:
+                        // the You tab is where an ignore can be seen and undone. The label stored is the
+                        // build this page is offering, which is the same string the update row compares
+                        // against, so the row disappears on the next pass rather than after a newer build.
+                        if (updateOffered && !Settings.isUpdateIgnored(packageName, offeredBuild)) {
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(stringResource(R.string.row_menu_ignore_update))
+                                        Text(
+                                            stringResource(R.string.row_menu_ignore_update_note),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                },
+                                onClick = {
+                                    menuOpen = false
+                                    Settings.ignoreUpdate(context, packageName, offeredBuild)
+                                    Toast.makeText(context, updateIgnored, Toast.LENGTH_SHORT).show()
+                                },
+                            )
+                            HorizontalDivider()
+                        }
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.row_menu_copy_link)) },
                             onClick = {
+                                menuOpen = false
+                                chosen?.file?.url?.let { url ->
+                                    scope.launch {
+                                        clipboard.setClipEntry(
+                                            ClipEntry(ClipData.newPlainText(linkLabel, url)),
+                                        )
+                                    }
+                                }
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.action_share)) },
+                            enabled = postId > 0,
+                            onClick = {
+                                menuOpen = false
                                 Share.app(
                                     context,
                                     detail?.summary?.title ?: shareFallback,
                                     postId,
                                 )
                             },
-                        ),
-                ) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        GlyphIcon(
-                            Glyph.Share,
-                            size = 20.dp,
-                            label = stringResource(R.string.action_share),
                         )
-                    }
-                }
-                Spacer(Modifier.width(4.dp))
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface,
-                    modifier = Modifier.size(44.dp).clip(CircleShape).playClickable(onClick = { menuOpen = true }),
-                ) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        GlyphIcon(Glyph.More, size = 20.dp, label = stringResource(R.string.a11y_more))
-                    }
-                }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    // Only when there is an update to dismiss, and only until it has been dismissed:
-                    // the You tab is where an ignore can be seen and undone. The label stored is the
-                    // build this page is offering, which is the same string the update row compares
-                    // against, so the row disappears on the next pass rather than after a newer build.
-                    if (updateOffered && !Settings.isUpdateIgnored(packageName, offeredBuild)) {
                         DropdownMenuItem(
-                            text = {
-                                Column {
-                                    Text(stringResource(R.string.row_menu_ignore_update))
-                                    Text(
-                                        stringResource(R.string.row_menu_ignore_update_note),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            },
+                            text = { Text(stringResource(R.string.detail_open_playstore)) },
+                            enabled = PlayStore.packageId(detail?.originalUrl) != null,
                             onClick = {
                                 menuOpen = false
-                                Settings.ignoreUpdate(context, packageName, offeredBuild)
-                                Toast.makeText(
-                                    context,
-                                    updateIgnored,
-                                    Toast.LENGTH_SHORT,
-                                ).show()
+                                PlayStore.packageId(detail?.originalUrl)?.let { PlayStore.open(context, it) }
                             },
                         )
-                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.detail_open_source_browser)) },
+                            enabled = detail?.originalUrl != null,
+                            onClick = {
+                                menuOpen = false
+                                detail?.originalUrl?.let { url ->
+                                    runCatching {
+                                        context.startActivity(
+                                            android.content.Intent(
+                                                android.content.Intent.ACTION_VIEW,
+                                                url.toUri(),
+                                            ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                                        )
+                                    }
+                                }
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.action_refresh)) },
+                            onClick = {
+                                menuOpen = false
+                                viewModel.load()
+                            },
+                        )
                     }
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.row_menu_copy_link)) },
-                        onClick = {
-                            menuOpen = false
-                            state.artefacts.getOrNull(state.selected)?.file?.url?.let { url ->
-                                scope.launch {
-                                    clipboard.setClipEntry(
-                                        ClipEntry(ClipData.newPlainText(
-                                            linkLabel,
-                                            url,
-                                        )),
-                                    )
-                                }
-                            }
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.action_share)) },
-                        enabled = postId > 0,
-                        onClick = {
-                            menuOpen = false
-                            Share.app(
-                                context,
-                                detail?.summary?.title ?: shareFallback,
-                                postId,
-                            )
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.detail_open_playstore)) },
-                        enabled = PlayStore.packageId(detail?.originalUrl) != null,
-                        onClick = {
-                            menuOpen = false
-                            PlayStore.packageId(detail?.originalUrl)?.let { PlayStore.open(context, it) }
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.detail_open_source_browser)) },
-                        enabled = detail?.originalUrl != null,
-                        onClick = {
-                            menuOpen = false
-                            detail?.originalUrl?.let { url ->
-                                runCatching {
-                                    context.startActivity(
-                                        android.content.Intent(
-                                            android.content.Intent.ACTION_VIEW,
-                                            url.toUri(),
-                                        ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
-                                    )
-                                }
-                            }
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.action_refresh)) },
-                        onClick = {
-                            menuOpen = false
-                            viewModel.load()
-                        },
-                    )
-                }
-            }
+                },
+            )
         }
 
         when {
@@ -465,27 +432,25 @@ fun DetailScreen(
             }
 
             detail == null -> item {
-                // The same breathing rail the feeds use, so a page that is still loading looks like it
-                // is loading rather than like it has nothing to show.
+                // The same breathing rail the feeds use, so a page that is still loading looks like
+                // it is loading rather than like it has nothing to show. The icon slot in the hero
+                // above is the landing mark the tapped card flies into.
                 val pulse = skeletonPulse()
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp)
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)
                         .graphicsLayer { alpha = pulse },
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    // The icon slot is the hero's landing mark. Without it the tapped card has nowhere
-                    // to fly to while the page is still fetching, and the one movement that makes the
-                    // storefront read as a single surface only plays on a warm cache.
                     Box(
-                        Modifier.size(72.dp).clip(ArtShape).sharedIcon(postId, pin = true)
+                        Modifier.fillMaxWidth().height(96.dp).clip(MaterialTheme.shapes.extraLarge)
                             .background(MaterialTheme.colorScheme.surfaceVariant),
                     )
                     Box(
-                        Modifier.fillMaxWidth(0.6f).height(28.dp).clip(CircleShape)
+                        Modifier.fillMaxWidth().height(52.dp).clip(PillShape)
                             .background(MaterialTheme.colorScheme.surfaceVariant),
                     )
                     Box(
-                        Modifier.fillMaxWidth().height(46.dp).clip(CircleShape)
+                        Modifier.fillMaxWidth(0.7f).height(18.dp).clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surfaceVariant),
                     )
                 }
@@ -494,84 +459,46 @@ fun DetailScreen(
             else -> {
                 val post = detail.summary
 
-                // ------------------------------------------------------- title block and stats
-                item {
-                    Column(Modifier.padding(horizontal = 16.dp)) {
-                        Text(
-                            post.publisher ?: stringResource(R.string.detail_unknown_publisher),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            post.title,
-                            style = MaterialTheme.typography.displaySmall,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-
-                item {
+                // The numbers live in one card rather than floating free: rating, size and reach
+                // are the same kind of fact and read as one row of figures.
+                item(key = "stats") {
                     Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(Modifier.size(72.dp)) { PostIcon(post, size = 72.dp) }
-                        Spacer(Modifier.width(16.dp))
-                        StatBlock(
-                            Glyph.Star,
-                            if (post.ratingAvg > 0) formatScore(post.ratingAvg) else "—",
-                            stringResource(R.string.detail_reviews, formatCount(post.ratingCount.toLong())),
-                        )
-                        StatBlock(Glyph.Download, formatSize(post.size) ?: "—", stringResource(R.string.detail_fact_size))
-                        StatBlock(Glyph.Person, formatCount(post.views), stringResource(R.string.detail_fact_views))
+                        StoreCard(Modifier.weight(1f)) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Metric(
+                                    Glyph.Star,
+                                    if (post.ratingAvg > 0) formatScore(post.ratingAvg) else "—",
+                                    stringResource(R.string.detail_reviews, formatCount(post.ratingCount.toLong())),
+                                )
+                                Hairline()
+                                Metric(
+                                    Glyph.Download,
+                                    formatSize(post.size) ?: "—",
+                                    stringResource(R.string.detail_fact_size),
+                                )
+                                Hairline()
+                                Metric(Glyph.Person, formatCount(post.views), stringResource(R.string.detail_fact_views))
+                            }
+                        }
                     }
                 }
 
-                // --------------------------------------------------------- install and its caption
-                item {
-                    Column(Modifier.padding(horizontal = 16.dp)) {
-                        val action = actionFor(installRecord, item)
+                // ------------------------------------------------------- install and its caption
+                item(key = "install") {
+                    StoreCard(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+                        if (item != null && (item.isActive || item.state == DownloadState.PAUSED) &&
+                            item.totalBytes > 0
+                        ) {
+                            TransferStrip(item)
+                        }
                         InstallButton(
                             action = action,
-                            onClick = {
-                                val artefact = state.artefacts.getOrNull(state.selected)
-                                when {
-                                    item?.state == DownloadState.READY && item.uninstallFirst ->
-                                        actions.uninstallFirst(item)
-                                    item?.state == DownloadState.READY ||
-                                        item?.state == DownloadState.NEEDS_PERMISSION ||
-                                        item?.state == DownloadState.AWAITING_CONFIRMATION ->
-                                        actions.install(item)
-                                    item?.state == DownloadState.PAUSED -> actions.resume(item)
-                                    item?.state == DownloadState.FAILED -> actions.resume(item)
-                                    action.kind == ActionKind.OPEN -> {
-                                        // The queue's own package name covers an install that finished
-                                        // through the system sheet before its record was written.
-                                        val pkg = installRecord?.packageName ?: item?.apkPackage
-                                        if (pkg != null) Installer.launch(context, pkg)
-                                    }
-                                    item != null && item.isActive -> DownloadEngine.toggle(context, item.id)
-                                    artefact != null && !QuickInstall.runsOn(artefact.file, Api.deviceAbis) ->
-                                        Toast.makeText(
-                                            context,
-                                            R.string.toast_build_not_for_device,
-                                            Toast.LENGTH_LONG,
-                                        ).show()
-                                    artefact != null -> actions.enqueue(
-                                        detail.summary,
-                                        artefact.versionLabel,
-                                        artefact.file,
-                                        detail,
-                                    )
-                                    else -> actions.enqueue(detail.summary)
-                                }
-                            },
-                            onChooser = { versionPickerOpen = true },
+                            onClick = primaryClick,
                             modifier = Modifier.fillMaxWidth(),
                         )
-                        Spacer(Modifier.height(10.dp))
                         Text(
                             // Only when there is no queued row to describe: a row that is already
                             // downloading has a truer caption than the catalogue's shortfall.
@@ -586,11 +513,10 @@ fun DetailScreen(
                         // The catalogue mixes storage domains inside one post, and one of them is
                         // refusing every request. Say so before the download starts rather than
                         // failing with a bare HTTP code.
-                        val blockedHost = state.artefacts.getOrNull(state.selected)?.file?.url
+                        val blockedHost = chosen?.file?.url
                             ?.takeIf { Hosts.isBlocked(it) }
                             ?.let { Hosts.hostOf(it) }
                         if (blockedHost != null) {
-                            Spacer(Modifier.height(8.dp))
                             Text(
                                 stringResource(R.string.detail_host_blocked, blockedHost),
                                 style = MaterialTheme.typography.bodySmall,
@@ -599,14 +525,12 @@ fun DetailScreen(
                         }
                         // A game can ship its data beside its package. The queue gets one row per file
                         // and the user gets told before the download starts, not after a silent one.
-                        val chosen = state.artefacts.getOrNull(state.selected)
                         val extras = if (chosen == null) {
                             emptyList()
                         } else {
                             Obb.companions(detail, chosen.versionLabel, chosen.file.url)
                         }
                         if (extras.isNotEmpty()) {
-                            Spacer(Modifier.height(8.dp))
                             Text(
                                 pluralStringResource(
                                     R.plurals.detail_extra_data,
@@ -618,33 +542,90 @@ fun DetailScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                        // The build is part of the decision, not a footnote: it sits in the card,
+                        // says which artefact the pill will fetch, and opens the chooser itself.
+                        if (chosen != null) {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .playClickable(
+                                        onClick = { versionPickerOpen = true },
+                                        pressedScale = 0.99f,
+                                    ),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        stringResource(R.string.chooser_build_title),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Text(
+                                        chosen.versionLabel.ifBlank {
+                                            stringResource(R.string.chooser_unlabelled)
+                                        },
+                                        style = MaterialTheme.typography.titleSmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        listOfNotNull(
+                                            chosen.file.abi.ifBlank {
+                                                stringResource(R.string.detail_abi_universal)
+                                            },
+                                            formatSize(chosen.file.sizeText),
+                                        ).joinToString(" · "),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                Box(
+                                    Modifier.size(36.dp).clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    GlyphIcon(
+                                        Glyph.ChevronRight,
+                                        size = 18.dp,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        label = stringResource(R.string.chooser_build_title),
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
                 // --------------------------------------------- the catalogue's own editorial row
-                item {
-                    Spacer(Modifier.height(8.dp))
-                    NoticeCard(
-                        emblem = "🧩",
-                        title = post.modInfo?.takeIf { it.isNotBlank() }
-                            ?: stringResource(R.string.detail_mod_notes_none),
-                        body = stringResource(
-                            R.string.detail_mod_notice,
-                            post.publisher ?: stringResource(R.string.detail_the_developer),
-                        ),
-                        actionLabel = stringResource(R.string.detail_read_mod_info),
-                        onAction = { modInfoOpen = true },
-                    )
+                if (!post.modInfo.isNullOrBlank()) {
+                    item(key = "editorial") {
+                        EditorialCard(
+                            emblem = "🧩",
+                            title = post.modInfo,
+                            body = stringResource(
+                                R.string.detail_mod_notice,
+                                post.publisher ?: stringResource(R.string.detail_the_developer),
+                            ),
+                            actionLabel = stringResource(R.string.detail_read_mod_info),
+                            onAction = { modInfoOpen = true },
+                        )
+                    }
                 }
 
                 // ------------------------------------------------------------------- screenshots
                 val gallery = detail.gallery
                 if (gallery.isNotEmpty()) {
-                    item {
+                    item(key = "shots-title") {
+                        SectionHeader(stringResource(R.string.detail_screenshots))
+                    }
+                    item(key = "shots") {
                         LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            contentPadding = PaddingValues(horizontal = 20.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.padding(top = 8.dp),
                         ) {
                             items(gallery, key = { it }) { url ->
                                 ScreenshotCard(url)
@@ -657,13 +638,13 @@ fun DetailScreen(
                     // phone, which would show a third of it and hide the rest behind a swipe.
                     val banner = post.bannerUrl ?: post.imageUrl
                     if (banner != null) {
-                        item {
+                        item(key = "shots-banner") {
                             ArtImage(
                                 url = banner,
                                 title = post.title,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                                    .padding(horizontal = 20.dp, vertical = 8.dp)
                                     .aspectRatio(16f / 9f),
                             )
                         }
@@ -676,187 +657,105 @@ fun DetailScreen(
                 val panels = detail.tabs
                 val panel = panels.getOrNull(tabIndex) ?: panels.firstOrNull()
                 val about = stripHtml(panel?.content?.takeIf { it.isNotBlank() } ?: detail.description)
-                if (panels.size > 1) {
-                    item {
-                        LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(top = 6.dp, bottom = 6.dp),
-                        ) {
-                            itemsIndexed(panels) { index, tab ->
-                                PlayChip(
-                                    label = tab.title.ifBlank {
-                                        stringResource(R.string.detail_section_fallback, index + 1)
-                                    },
-                                    selected = index == (tabIndex.coerceAtMost(panels.lastIndex)),
-                                    onClick = {
-                                        tabIndex = index
-                                        aboutExpanded = false
-                                    },
-                                )
-                            }
-                        }
-                    }
-                }
                 if (about.isNotBlank()) {
-                    // Switching panels replaces a whole block of prose, so the block moves rather than
-                    // repainting: Play crossfades the panel body and lets the card settle to the new
-                    // height instead of snapping the list under the user's thumb.
-                    item {
-                        val headerTitle = panel?.title?.takeUnless { it.equals("About", true) }
-                            ?: stringResource(R.string.detail_about_title)
-                        AnimatedContent(
-                            targetState = headerTitle to about,
-                            transitionSpec = {
-                                ContentTransform(
-                                    targetContentEnter = fadeIn(
-                                        PlayMotion.spec(PlayMotion.MEDIUM, EmphasizedDecelerateEasing),
-                                    ),
-                                    initialContentExit = fadeOut(
-                                        PlayMotion.spec(PlayMotion.SHORT, StandardAccelerateEasing),
-                                    ),
-                                    sizeTransform = SizeTransform(clip = false),
-                                )
-                            },
-                            label = "detail-panel",
-                        ) { (title, body) ->
-                            Column {
-                                SectionHeader(title, onMore = { aboutExpanded = true })
-                                // Four lines becoming the whole text is a height change, so it grows.
-                                AnimatedContent(
-                                    targetState = aboutExpanded,
-                                    transitionSpec = {
-                                        ContentTransform(
-                                            targetContentEnter = fadeIn(
-                                                PlayMotion.spec(PlayMotion.MEDIUM, EmphasizedEasing),
-                                            ),
-                                            initialContentExit = fadeOut(
-                                                PlayMotion.spec(PlayMotion.SHORT, StandardEasing),
-                                            ),
-                                            sizeTransform = SizeTransform(clip = true),
-                                        )
-                                    },
-                                    label = "about-lines",
-                                ) { expanded ->
-                                    Text(
-                                        body,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = if (expanded) Int.MAX_VALUE else 4,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.padding(horizontal = 16.dp),
+                    item(key = "about") {
+                        StoreCard(Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) {
+                            val headerTitle = panel?.title?.takeUnless { it.equals("About", true) }
+                                ?: stringResource(R.string.detail_about_title)
+                            AnimatedContent(
+                                targetState = headerTitle to about,
+                                transitionSpec = {
+                                    ContentTransform(
+                                        targetContentEnter = fadeIn(
+                                            PlayMotion.spec(PlayMotion.MEDIUM, EmphasizedDecelerateEasing),
+                                        ),
+                                        initialContentExit = fadeOut(
+                                            PlayMotion.spec(PlayMotion.SHORT, StandardAccelerateEasing),
+                                        ),
+                                        sizeTransform = SizeTransform(clip = false),
                                     )
+                                },
+                                label = "detail-panel",
+                            ) { (title, body) ->
+                                Column {
+                                    Text(title, style = MaterialTheme.typography.titleMedium)
+                                    Spacer(Modifier.height(8.dp))
+                                    if (panels.size > 1) {
+                                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            itemsIndexed(panels) { index, tab ->
+                                                PlayChip(
+                                                    label = tab.title.ifBlank {
+                                                        stringResource(R.string.detail_section_fallback, index + 1)
+                                                    },
+                                                    selected = index == (tabIndex.coerceAtMost(panels.lastIndex)),
+                                                    onClick = {
+                                                        tabIndex = index
+                                                        aboutExpanded = false
+                                                    },
+                                                )
+                                            }
+                                        }
+                                        Spacer(Modifier.height(10.dp))
+                                    }
+                                    // Four lines becoming the whole text is a height change, so it grows.
+                                    AnimatedContent(
+                                        targetState = aboutExpanded,
+                                        transitionSpec = {
+                                            ContentTransform(
+                                                targetContentEnter = fadeIn(
+                                                    PlayMotion.spec(PlayMotion.MEDIUM, EmphasizedEasing),
+                                                ),
+                                                initialContentExit = fadeOut(
+                                                    PlayMotion.spec(PlayMotion.SHORT, StandardEasing),
+                                                ),
+                                                sizeTransform = SizeTransform(clip = true),
+                                            )
+                                        },
+                                        label = "about-lines",
+                                    ) { expanded ->
+                                        Text(
+                                            body,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = if (expanded) Int.MAX_VALUE else 5,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                }
+                            }
+                            if (!aboutExpanded) {
+                                TextButton(
+                                    onClick = { aboutExpanded = true },
+                                    contentPadding = PaddingValues(0.dp),
+                                ) {
+                                    Text(stringResource(R.string.a11y_see_more))
                                 }
                             }
                         }
                     }
-                    if (!aboutExpanded) {
-                        item {
-                            TextButton(
-                                onClick = { aboutExpanded = true },
-                                modifier = Modifier.padding(horizontal = 8.dp),
-                            ) {
-                                Text(stringResource(R.string.a11y_see_more))
-                            }
-                        }
-                    }
                 }
 
-                // ------------------------------ verification card, in the Data-safety card shape
-                item {
-                    Spacer(Modifier.height(8.dp))
-                    InfoCard {
-                        InfoRow(
-                            Glyph.Shield,
-                            stringResource(
-                                if (item?.apkPackage != null) R.string.detail_verified_after
-                                else R.string.detail_verified_before
-                            ),
-                            subtitle = if (item?.apkPackage != null) {
-                                stringResource(
-                                    R.string.detail_package_line,
-                                    item.apkPackage,
-                                    item.apkVersionCode?.toString() ?: "—",
-                                )
-                            } else {
-                                stringResource(R.string.detail_verified_note)
-                            },
-                        )
-                        InfoRow(
-                            Glyph.Info,
-                            stringResource(R.string.detail_signing_cert),
-                            subtitle = item?.apkSignerSha256?.let {
-                                stringResource(R.string.detail_signer_sha, it.take(24))
-                            } ?: installRecord?.versionName?.let { stringResource(R.string.detail_signer_pinned) }
-                                ?: stringResource(R.string.detail_signer_none),
-                        )
-                        TextButton(onClick = { verificationOpen = true }, contentPadding = PaddingValues(0.dp)) {
-                            Text(stringResource(R.string.detail_see_details))
-                        }
-                    }
-                }
-
-                // ---------------------------------------- the device chooser, as ABI/artefact chips
-                if (state.artefacts.size > 1) {
-                    item {
-                        LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(top = 14.dp),
-                        ) {
-                            itemsIndexed(state.artefacts) { index, artefact ->
-                                PlayChip(
-                                    label = artefact.label,
-                                    selected = state.selected == index,
-                                    onClick = { viewModel.select(index) },
-                                )
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        PlayBadge(
-                            (state.artefacts.getOrNull(state.selected)?.versionLabel ?: post.latestVersion ?: "—")
-                                .let { if (it.length > 26) it.take(26).trimEnd() + "…" else it },
-                        )
-                        state.artefacts.getOrNull(state.selected)?.let {
-                            PlayBadge(it.file.abi.ifBlank { stringResource(R.string.detail_abi_universal) })
-                        }
-                    }
-                }
-
-                // ------------------------------------------------------- ratings and reviews
-                item { SectionHeader(stringResource(R.string.detail_ratings_title)) }
-                item {
-                    RatingBlock(
-                        average = post.ratingAvg,
-                        count = post.ratingCount,
-                        note = stringResource(R.string.detail_ratings_note),
-                    )
-                }
                 // ------------------------------------------------------------------ what's new
-                item { SectionHeader(stringResource(R.string.detail_whats_new)) }
-                item {
-                    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            stringResource(
-                                R.string.detail_last_updated,
+                item(key = "whats-new") {
+                    StoreCard(Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                stringResource(R.string.detail_whats_new),
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
                                 formatDate(post.updatedAt) ?: stringResource(R.string.detail_unknown_date),
-                            ),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                         Text(
                             detail.versions.firstOrNull()?.note?.takeIf { it.isNotBlank() }
                                 ?: post.modInfo?.takeIf { it.isNotBlank() }
                                 ?: stringResource(R.string.detail_notes_none),
                             style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         if (detail.versions.size > 1) {
                             Text(
@@ -873,29 +772,31 @@ fun DetailScreen(
                 }
 
                 // ------------------------------------------------------------------ app info
-                item { SectionHeader(stringResource(R.string.detail_app_info)) }
-                item {
-                    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DetailFact(stringResource(R.string.detail_fact_publisher), post.publisher ?: "—")
-                        DetailFact(stringResource(R.string.detail_fact_genre), post.genre ?: "—")
-                        DetailFact(stringResource(R.string.detail_fact_build), post.type ?: "—")
-                        DetailFact(stringResource(R.string.detail_fact_size), formatSize(post.size) ?: "—")
-                        DetailFact(stringResource(R.string.detail_fact_version), post.latestVersion ?: "—")
-                        DetailFact(stringResource(R.string.detail_fact_updated), formatDate(post.updatedAt) ?: "—")
-                        DetailFact(stringResource(R.string.detail_fact_views), formatCount(post.views))
+                item(key = "facts") {
+                    StoreCard(Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) {
+                        Text(stringResource(R.string.detail_app_info), style = MaterialTheme.typography.titleMedium)
+                        FactTable(
+                            rows = listOf(
+                                stringResource(R.string.detail_fact_publisher) to (post.publisher ?: "—"),
+                                stringResource(R.string.detail_fact_genre) to (post.genre ?: "—"),
+                                stringResource(R.string.detail_fact_build) to (post.type ?: "—"),
+                                stringResource(R.string.detail_fact_size) to (formatSize(post.size) ?: "—"),
+                                stringResource(R.string.detail_fact_version) to (post.latestVersion ?: "—"),
+                                stringResource(R.string.detail_fact_updated) to (formatDate(post.updatedAt) ?: "—"),
+                                stringResource(R.string.detail_fact_views) to formatCount(post.views),
+                            ),
+                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         val playId = PlayStore.packageId(detail.originalUrl)
                         if (playId != null) {
                             // Play shows the developer's own listing; here the button opens the
                             // real Play Store page for this package instead of printing a URL.
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     stringResource(R.string.detail_play_store),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.width(110.dp),
+                                    modifier = Modifier.weight(1f),
                                 )
                                 TextButton(
                                     onClick = { PlayStore.open(context, playId) },
@@ -909,20 +810,71 @@ fun DetailScreen(
                                 }
                             }
                         } else {
-                            DetailFact(
+                            Text(
                                 stringResource(R.string.detail_fact_source),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
                                 detail.originalUrl ?: stringResource(R.string.detail_source_fallback),
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
                     }
                 }
 
+                // ------------------------------ verification card, in the Data-safety card shape
+                item(key = "verified") {
+                    StoreCard(Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) {
+                        InfoRow(
+                            Glyph.Shield,
+                            stringResource(
+                                if (item?.apkPackage != null) R.string.detail_verified_after
+                                else R.string.detail_verified_before
+                            ),
+                            subtitle = if (item?.apkPackage != null) {
+                                stringResource(
+                                    R.string.detail_package_line,
+                                    item.apkPackage,
+                                    item.apkVersionCode?.toString() ?: "—",
+                                )
+                            } else {
+                                stringResource(R.string.detail_verified_note)
+                            },
+                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        InfoRow(
+                            Glyph.Info,
+                            stringResource(R.string.detail_signing_cert),
+                            subtitle = item?.apkSignerSha256?.let {
+                                stringResource(R.string.detail_signer_sha, it.take(24))
+                            } ?: installRecord?.versionName?.let { stringResource(R.string.detail_signer_pinned) }
+                                ?: stringResource(R.string.detail_signer_none),
+                        )
+                        TextButton(onClick = { verificationOpen = true }, contentPadding = PaddingValues(0.dp)) {
+                            Text(stringResource(R.string.detail_see_details))
+                        }
+                    }
+                }
+
+                // ------------------------------------------------------- ratings and reviews
+                item(key = "ratings") { SectionHeader(stringResource(R.string.detail_ratings_title)) }
+                item(key = "ratings-block") {
+                    RatingBlock(
+                        average = post.ratingAvg,
+                        count = post.ratingCount,
+                        note = stringResource(R.string.detail_ratings_note),
+                    )
+                }
+
                 // ------------------------------------------------------------- similar apps
                 if (state.similar.isNotEmpty()) {
-                    item { SectionHeader(stringResource(R.string.detail_similar_apps)) }
-                    item {
+                    item(key = "similar-title") { SectionHeader(stringResource(R.string.detail_similar_apps)) }
+                    item(key = "similar") {
                         LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            contentPadding = PaddingValues(horizontal = 20.dp),
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
                             items(state.similar, key = { it.id }) { similar ->
@@ -932,13 +884,13 @@ fun DetailScreen(
                     }
                 }
 
-                item {
-                    HorizontalDivider(Modifier.padding(vertical = 16.dp))
+                item(key = "disclaimer") {
+                    HorizontalDivider(Modifier.padding(vertical = 18.dp))
                     Text(
                         stringResource(R.string.detail_disclaimer),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp),
+                        modifier = Modifier.padding(horizontal = 20.dp),
                     )
                 }
             }
@@ -965,7 +917,9 @@ fun DetailScreen(
         val body = detail?.modTab?.content ?: detail?.tabs?.getOrNull(1)?.content
         AlertDialog(
             onDismissRequest = { modInfoOpen = false },
-            confirmButton = { TextButton(onClick = { modInfoOpen = false }) { Text(stringResource(R.string.action_close)) } },
+            confirmButton = {
+                TextButton(onClick = { modInfoOpen = false }) { Text(stringResource(R.string.action_close)) }
+            },
             title = { Text(stringResource(R.string.mod_info_title)) },
             text = {
                 Text(
@@ -982,12 +936,178 @@ fun DetailScreen(
 }
 
 /**
- * Play's statistic column: the value in bold, an optional glyph on the same line, and the label
- * underneath in grey. The glyph sits beside the value rather than above it, which is what makes
- * Play's header row read as one line of numbers.
+ * The page's opening: the catalogue's own banner, the app's mark rising out of it, and the three
+ * facts that identify the build.
+ *
+ * The art is cropped to a fixed band and dissolved into the page rather than stopping at a hard
+ * edge, so the header reads as one surface instead of a picture glued above a list. The bar controls
+ * sit on a scrim because they have to be legible over whatever the catalogue published.
  */
 @Composable
-private fun RowScope.StatBlock(glyph: Glyph, value: String, label: String) {
+private fun DetailHero(
+    post: PostSummary?,
+    postId: Long,
+    wished: Boolean,
+    onBack: () -> Unit,
+    onWishlist: () -> Unit,
+    onShare: () -> Unit,
+    onMore: () -> Unit,
+    menu: @Composable () -> Unit,
+) {
+    val page = MaterialTheme.colorScheme.background
+    val back = stringResource(R.string.a11y_back)
+    val wishLabel = stringResource(
+        if (wished) R.string.a11y_wishlist_remove else R.string.a11y_wishlist_add,
+    )
+    val shareLabel = stringResource(R.string.action_share)
+    val moreLabel = stringResource(R.string.a11y_more)
+    Column {
+        Box(Modifier.fillMaxWidth().height(200.dp)) {
+            if (post != null) {
+                AsyncImage(
+                    model = post.bannerUrl ?: post.imageUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant))
+            }
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(
+                        0f to Color.Black.copy(alpha = 0.45f),
+                        0.34f to Color.Black.copy(alpha = 0.10f),
+                        0.62f to Color.Transparent,
+                        0.88f to page.copy(alpha = 0.92f),
+                        1f to page,
+                    ),
+                ),
+            )
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                HeroButton(Glyph.Back, back, onBack)
+                Spacer(Modifier.weight(1f))
+                HeroButton(Glyph.Heart, wishLabel, onWishlist, filled = wished)
+                HeroButton(Glyph.Share, shareLabel, onShare)
+                Box {
+                    HeroButton(Glyph.More, moreLabel, onMore)
+                    menu()
+                }
+            }
+        }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .offset(y = (-30).dp)
+                .padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Box(
+                Modifier
+                    .size(86.dp)
+                    .shadow(10.dp, ArtShape)
+                    .clip(ArtShape)
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(3.dp),
+            ) {
+                if (post != null) {
+                    PostIcon(post, size = 80.dp)
+                } else {
+                    // Pinned, so the tapped card's mark has somewhere to land while the page fetches.
+                    Box(
+                        Modifier.size(80.dp).clip(ArtShape).sharedIcon(postId, pin = true)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                    )
+                }
+            }
+            Column(Modifier.weight(1f).padding(start = 14.dp, top = 14.dp)) {
+                // A catalogue often repeats the app's own name as its publisher; printing it twice
+                // spends a line of the header on nothing.
+                val publisher = when {
+                    post == null -> null
+                    post.publisher.isNullOrBlank() -> stringResource(R.string.detail_unknown_publisher)
+                    post.publisher.equals(post.title, ignoreCase = true) -> null
+                    else -> post.publisher
+                }
+                if (publisher != null) {
+                    Text(
+                        publisher,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Text(
+                    post?.title ?: "",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    listOfNotNull(
+                        post?.genre?.takeIf { it.isNotBlank() },
+                        post?.type?.takeIf { it.isNotBlank() },
+                        formatSize(post?.size),
+                    ).joinToString(" · ").ifBlank { " " },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+/** The bar's circular controls, on a scrim so they read over any artwork. */
+@Composable
+private fun HeroButton(
+    glyph: Glyph,
+    label: String,
+    onClick: () -> Unit,
+    filled: Boolean = false,
+) {
+    Box(
+        Modifier
+            .padding(horizontal = 2.dp)
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(Color.Black.copy(alpha = 0.38f))
+            .playClickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        GlyphIcon(glyph, size = 21.dp, tint = Color.White, filled = filled, label = label)
+    }
+}
+
+/**
+ * The page's card: a hairline-edged sheet on the page colour, with the corner the rest of the store
+ * uses for a large surface. One definition, so every section sits at the same weight.
+ */
+@Composable
+private fun StoreCard(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+    }
+}
+
+/** One figure in the facts strip: value, its glyph, and what the number counts. */
+@Composable
+private fun RowScope.Metric(glyph: Glyph, value: String, label: String) {
     Column(
         Modifier.weight(1f).padding(horizontal = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -995,44 +1115,146 @@ private fun RowScope.StatBlock(glyph: Glyph, value: String, label: String) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 value,
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.width(3.dp))
+            Spacer(Modifier.width(4.dp))
             GlyphIcon(
                 glyph,
                 size = 15.dp,
                 tint = if (glyph == Glyph.Star) RatingStar else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        Spacer(Modifier.height(2.dp))
         Text(
             label,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
-            maxLines = 2,
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
     }
 }
 
+/** The seam between two figures. */
 @Composable
-private fun DetailFact(label: String, value: String) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(110.dp),
+private fun Hairline() {
+    Box(
+        Modifier
+            .width(1.dp)
+            .height(32.dp)
+            .background(MaterialTheme.colorScheme.outlineVariant),
+    )
+}
+
+/**
+ * The live transfer, inside the install card: the bar, the bytes that have landed, and the rate.
+ *
+ * The line mirrors the notification's, so the two places that report progress say the same thing
+ * about the same row.
+ */
+@Composable
+private fun TransferStrip(item: DownloadItem) {
+    val percent = stringResource(R.string.percent_int, (item.progress * 100).toInt())
+    val bytes = "${DownloadEngine.humanSize(item.bytesDownloaded)} / ${DownloadEngine.humanSize(item.totalBytes)}"
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        LinearProgressIndicator(
+            progress = { item.progress },
+            modifier = Modifier.fillMaxWidth().height(6.dp).clip(PillShape),
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         )
-        Text(
-            value,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "$percent · $bytes",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            if (item.isActive && item.bytesPerSecond > 0) {
+                Text(
+                    stringResource(
+                        R.string.detail_transfer_speed,
+                        DownloadEngine.humanSize(item.bytesPerSecond),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** The catalogue's editorial note: a mark, the claim, the caveat, and the way into the full note. */
+@Composable
+private fun EditorialCard(
+    emblem: String,
+    title: String,
+    body: String,
+    actionLabel: String,
+    onAction: () -> Unit,
+) {
+    Surface(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+    ) {
+        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Box(
+                Modifier.size(40.dp).clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(emblem, style = MaterialTheme.typography.titleMedium)
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    body,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                TextButton(onClick = onAction, contentPadding = PaddingValues(0.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(actionLabel, style = MaterialTheme.typography.labelLarge)
+                        GlyphIcon(Glyph.ChevronRight, size = 16.dp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Label on the left, value on the right, a hairline between each pair. */
+@Composable
+private fun FactTable(rows: List<Pair<String, String>>) {
+    Column {
+        rows.forEachIndexed { index, row ->
+            if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    row.first,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(112.dp),
+                )
+                Text(
+                    row.second,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
     }
 }
 
@@ -1060,22 +1282,27 @@ private fun VersionPickerDialog(
                     modifier = Modifier.padding(bottom = 8.dp),
                 )
                 artefacts.forEachIndexed { index, artefact ->
+                    val picked = index == selected
                     Row(
                         Modifier
                             .fillMaxWidth()
+                            .clip(MaterialTheme.shapes.medium)
                             .clickable { onSelect(index) }
-                            .padding(vertical = 10.dp),
+                            .padding(vertical = 10.dp, horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text(artefact.versionLabel.ifBlank { unlabelled }, style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                artefact.versionLabel.ifBlank { unlabelled },
+                                style = MaterialTheme.typography.titleSmall,
+                            )
                             Text(
                                 artefact.label,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        if (index == selected) {
+                        if (picked) {
                             GlyphIcon(
                                 Glyph.Check,
                                 size = 18.dp,
@@ -1134,4 +1361,3 @@ private fun installCaption(action: RowAction, item: DownloadItem?, record: Insta
             else -> stringResource(R.string.caption_default)
         }
     }
-

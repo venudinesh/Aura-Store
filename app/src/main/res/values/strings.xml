@@ -295,7 +295,6 @@
         <item quantity="one">This build also ships %1$d data file (%2$s). It is queued with the app and added to Android/obb after it installs.</item>
         <item quantity="other">This build also ships %1$d data files (%2$s). They are queued with the app and added to Android/obb after it installs.</item>
     </plurals>
-    <string name="detail_mod_notes_none">No mod notes for this build</string>
     <string name="detail_mod_notice">This is a modified build published by a third-party catalogue, not by %1$s.</string>
     <string name="detail_the_developer">the developer</string>
     <string name="detail_read_mod_info">Read MOD info</string>
@@ -314,7 +313,8 @@
     <string name="detail_ratings_title">Ratings and reviews</string>
     <string name="detail_ratings_note">This catalogue publishes an average and a review count. It exposes no per-star breakdown and no review text, so none is shown rather than invented.</string>
     <string name="detail_whats_new">What\'s new</string>
-    <string name="detail_last_updated">Last updated on %1$s</string>
+    <string name="detail_screenshots">Screenshots</string>
+    <string name="detail_transfer_speed">%1$s/s</string>
     <string name="detail_unknown_date">an unknown date</string>
     <string name="detail_notes_none">No release notes are published for this build.</string>
     <plurals name="detail_versions_listed">
@@ -783,8 +783,6 @@
     <string name="src_downloading">Downloading %1$s from %2$s</string>
     <string name="src_files">Files</string>
     <string name="src_screenshots">Screenshots</string>
-    <string name="src_hide_files">Hide files</string>
-    <string name="src_resolving">Resolving links…</string>
     <string name="src_no_file">This page has no downloadable file.</string>
     <string name="src_file_list_failed">Could not read the file list</string>
     <string name="action_download">Download</string>
@@ -792,12 +790,11 @@
     <string name="src_app_page">App page</string>
 
     <!-- The sheet that asks which source a download comes from. -->
-    <string name="src_picker_title">Download %1$s from</string>
     <string name="src_picker_body">Choose a source. Each answer is resolved to a direct file link before you download it.</string>
-    <string name="src_pick_file_title">Download %1$s</string>
     <string name="src_pick_file_body">Choose the file. It comes from %1$s.</string>
     <string name="src_picker_default">Default</string>
     <string name="src_picker_searching">Looking for it…</string>
+    <string name="src_picker_found">Found</string>
     <string name="src_picker_none">Not on %1$s</string>
 
     <!-- A source's own shelf: what it published last and how it groups what it published. -->
