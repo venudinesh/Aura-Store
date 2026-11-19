@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -172,6 +173,10 @@ fun ListingScreen(
     onBack: () -> Unit,
     onOpenPost: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    // Owned by the shell when a detail page can be pushed over this one: the page is disposed while
+    // the detail is up, and a position remembered here would leave with it. The default keeps a
+    // standalone use working.
+    listState: LazyListState = rememberLazyListState(),
     viewModel: ListingViewModel = viewModel(
         key = "listing-${title.hashCode()}-${query.hashCode()}",
     ) { ListingViewModel(query) },
@@ -179,7 +184,6 @@ fun ListingScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val installs by AppState.installs.collectAsStateWithLifecycle()
     val actions = rememberStoreActions()
-    val listState = rememberLazyListState()
 
     LaunchedEffect(Unit) { viewModel.start() }
 

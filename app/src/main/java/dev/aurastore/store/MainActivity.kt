@@ -29,6 +29,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -372,6 +373,11 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
     val appsScroll = rememberLazyListState()
     val browseScroll = rememberLazyListState()
     val youScroll = rememberLazyListState()
+    // The pushed lists are in the same position: a view-all rail or a category is disposed while a
+    // detail sits over it, so their places live here too, keyed by the page they belong to. The map
+    // is small — one entry per listing opened this visit — and keeps Back from returning to the top.
+    val listingScrolls = remember { mutableMapOf<String, LazyListState>() }
+    val categoryScrolls = remember { mutableMapOf<Long, LazyListState>() }
     // The post whose icon is flying. Zero means no flight: every shelf card then renders without a
     // shared element, which is what keeps a fast fling out of the transition scope's bookkeeping.
     var sharedIconPost by remember { mutableLongStateOf(0L) }
@@ -682,6 +688,7 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
                                 categoryId = route.id,
                                 onBack = ::pop,
                                 onOpenPost = { push(Route.Detail(it)) },
+                                listState = categoryScrolls.getOrPut(route.id) { LazyListState() },
                             )
 
                             is Screen.Listing -> ListingScreen(
@@ -689,6 +696,11 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
                                 query = route.query,
                                 onBack = ::pop,
                                 onOpenPost = { push(Route.Detail(it)) },
+                                // Title and query together are the page: two rails can share a
+                                // heading, and the same heading can carry a different cut.
+                                listState = listingScrolls.getOrPut("${route.title}\u0000${route.query}") {
+                                    LazyListState()
+                                },
                             )
 
                             Screen.Settings -> SettingsScreen(

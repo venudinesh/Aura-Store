@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -325,12 +326,14 @@ fun CategoryScreen(
     onBack: () -> Unit,
     onOpenPost: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    // Owned by the shell, for the same reason as a listing: a detail page is disposed over this
+    // one, and the category has to come back at the row that was tapped.
+    listState: LazyListState = rememberLazyListState(),
     viewModel: CategoryViewModel = viewModel(key = "category-$categoryId") { CategoryViewModel(categoryId) },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val installs by AppState.installs.collectAsStateWithLifecycle()
     val actions = rememberStoreActions()
-    val listState = rememberLazyListState()
 
     LaunchedEffect(Unit) { viewModel.start() }
 
