@@ -141,6 +141,11 @@ class ScreenMotionTest {
         )
         assertEquals(R.string.row_verifying, downloadRowStatus(row(DownloadState.VERIFYING)).id)
         assertEquals(R.string.row_reading_archive, downloadRowStatus(row(DownloadState.VERIFYING, "data")).id)
+        // An archive's verify step is the copy into Downloads, not a package parse.
+        assertEquals(
+            R.string.row_saving_archive,
+            downloadRowStatus(row(DownloadState.VERIFYING).copy(fileName = "game data.zip")).id,
+        )
         assertEquals(
             R.string.row_awaiting_confirm,
             downloadRowStatus(row(DownloadState.AWAITING_CONFIRMATION)).id,

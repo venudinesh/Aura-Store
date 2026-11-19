@@ -28,6 +28,11 @@ class TransferTest {
     private var honourRanges = true
     private val client = OkHttpClient()
 
+    /** The engine's stream is long-lived, so a stall is proved with a client that notices one fast. */
+    private val stallClient = OkHttpClient.Builder()
+        .readTimeout(300, java.util.concurrent.TimeUnit.MILLISECONDS)
+        .build()
+
     private val port get() = server.address.port
     private fun url() = "http://127.0.0.1:$port/payload.bin"
 
@@ -37,7 +42,31 @@ class TransferTest {
         payloadSha = MessageDigest.getInstance("SHA-256").digest(payload).joinToString("") { "%02x".format(it) }
         server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/payload.bin") { exchange -> serve(exchange) }
-        server.executor = java.util.concurrent.Executors.newSingleThreadExecutor()
+        server.createContext("/stall.bin") { exchange ->
+            // A body with no length, then silence: the shape that used to hang a streaming read
+            // forever. The connection is closed only after the client must have given up on it.
+            exchange.sendResponseHeaders(200, 0)
+            exchange.responseBody.use { out ->
+                out.write(ByteArray(64 * 1024) { 1 })
+                out.flush()
+                Thread.sleep(2_000)
+            }
+        }
+        server.createContext("/chunked.bin") { exchange ->
+            if (exchange.requestMethod == "HEAD") {
+                // Accepts the size question and never answers it: the probe has its own deadline.
+                Thread.sleep(2_000)
+                runCatching { exchange.sendResponseHeaders(500, -1) }
+                exchange.close()
+                return@createContext
+            }
+            exchange.sendResponseHeaders(200, 0)
+            exchange.responseBody.use { it.write(payload) }
+        }
+        // A cached pool because the probe and the body are two connections at once.
+        server.executor = java.util.concurrent.Executors.newCachedThreadPool { runnable ->
+            Thread(runnable).apply { isDaemon = true }
+        }
         server.start()
     }
 
@@ -166,6 +195,42 @@ class TransferTest {
         val failure = runCatching { Transfer.stream(client, "http://127.0.0.1:$port/missing.bin", target) }
         assertTrue(failure.isFailure)
         assertTrue(failure.exceptionOrNull() is IOException)
+    }
+
+    @Test
+    fun `a host that stops mid-body fails and keeps its bytes instead of hanging`() {
+        val target = tempFile()
+        val started = System.currentTimeMillis()
+        val failure = runCatching { Transfer.stream(stallClient, "http://127.0.0.1:$port/stall.bin", target) }
+        val elapsed = System.currentTimeMillis() - started
+
+        assertTrue("a silent socket must raise, not block", failure.exceptionOrNull() is IOException)
+        assertTrue("it must give up near the stall timeout, not the host's lifetime: ${elapsed}ms", elapsed < 5_000)
+        assertTrue(
+            "the bytes already written are what a resume continues from, found ${target.length()}",
+            target.length() in 1..(64L * 1024),
+        )
+    }
+
+    @Test
+    fun `a size probe that never answers cannot hold the body`() {
+        val target = tempFile()
+        var lastTotal = -2L
+        val started = System.currentTimeMillis()
+        val result = Transfer.stream(
+            client = client,
+            url = "http://127.0.0.1:$port/chunked.bin",
+            target = target,
+            // Short enough that a waiting probe would still be sleeping when the assertion runs.
+            probeTimeoutMs = 300,
+            onProgress = { _, total -> lastTotal = total },
+        )
+        val elapsed = System.currentTimeMillis() - started
+
+        assertEquals(payload.size.toLong(), result.bytes)
+        assertEquals(payloadSha, result.sha256)
+        assertEquals("an unanswered HEAD means an unknown size, not a stuck transfer", -1L, lastTotal)
+        assertTrue("the HEAD deadline must not gate the download: ${elapsed}ms", elapsed < 5_000)
     }
 
     private fun sha256Of(file: File): String =

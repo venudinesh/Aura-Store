@@ -3,6 +3,25 @@
 All notable changes to Aura Store. The format follows [Keep a Changelog](https://keepachangelog.com/),
 and the project uses `MAJOR.MINOR.PATCH` versions.
 
+## [1.8.1] - 2026-11-19
+
+### Fixed
+
+- **A download can no longer wait forever on a silent host.** The transfer client ran with OkHttp's
+  no-timeout mode, so a socket that stopped sending never raised, the retry the queue already had
+  never ran, and the row sat at its last byte until Cancel. A 30-second read timeout turns silence
+  into an `IOException` and the queue resumes from the bytes on disk. A slow transfer that keeps
+  producing bytes is unaffected: the timeout is per read, not per file.
+- **The size probe cannot hold the transfer it describes.** The HEAD that asks for a file's length
+  now carries its own 10-second deadline and is closed on a refusal. A host that answers HEAD with
+  `403`, or never answers it, leaves the size unknown instead of stalling the GET already open.
+- **An unknown-size transfer says so.** With no total, the dock, the queue row, the detail strip and
+  the notification show the bytes downloaded and an indeterminate bar, not a permanent `0 %` and
+  `0 B left` that read as a download that never started.
+- **An archive's last step is named.** The copy of a zip into `Downloads/Aura Store` is labelled as
+  saving, in the row, the dock and the notification, instead of claiming to verify a package it
+  never parses.
+
 ## [1.8.0] - 2026-11-19
 
 ### Added

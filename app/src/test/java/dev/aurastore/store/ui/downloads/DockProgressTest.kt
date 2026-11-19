@@ -100,4 +100,18 @@ class DockProgressTest {
         assertEquals(0f, dockFillWidth(300f, 0f), 0.001f)
         assertTrue(queued.start > 0f)
     }
+
+    @Test
+    fun `an unknown-size sweep enters and leaves the whole track`() {
+        // The band is off the leading edge at phase zero and past the trailing edge at phase one, so
+        // the loop has no jump where the eye could read the transfer as restarting.
+        assertEquals(-120f, dockSweepStart(300f, band = 120f, phase = 0f), 0.001f)
+        assertEquals(300f, dockSweepStart(300f, band = 120f, phase = 1f), 0.001f)
+        assertTrue(dockSweepStart(300f, 120f, 0.6f) > dockSweepStart(300f, 120f, 0.4f))
+        // Unmeasured cards and a NaN phase draw at the leading edge rather than carrying a NaN into
+        // the canvas, which is the same rule the fraction follows.
+        assertEquals(0f, dockSweepStart(0f, 120f, 0.5f), 0.001f)
+        assertEquals(0f, dockSweepStart(300f, 0f, 0.5f), 0.001f)
+        assertEquals(0f, dockSweepStart(300f, 120f, Float.NaN), 0.001f)
+    }
 }

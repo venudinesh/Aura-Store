@@ -8,6 +8,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.security.MessageDigest
+import java.util.concurrent.TimeUnit
 
 /** What a finished transfer produced: its byte count and the digest of the whole file. */
 data class TransferResult(val bytes: Long, val sha256: String)
@@ -38,6 +39,20 @@ object Transfer {
     private const val UA = "okhttp/3.12.13"
     private const val BUFFER_BYTES = 64 * 1024
 
+    /**
+     * How long a socket may stay silent before the transfer gives up on it.
+     *
+     * A download is a stream, not a single request, so the value has to be long enough for a slow
+     * mobile handover and short enough that a host which stopped sending is a failure the queue can
+     * retry rather than a row that waits forever. `0` — OkHttp's "no timeout" — is the one setting a
+     * streaming download must not use: a CDN that closes its end without a FIN leaves `read()` blocked
+     * with nothing to wake it, and no amount of retry logic ever runs.
+     */
+    const val STALL_TIMEOUT_SECONDS = 30L
+
+    /** The HEAD that asks for a size may not hold the transfer it is describing. */
+    const val PROBE_TIMEOUT_MS = 10_000L
+
     fun stream(
         client: OkHttpClient,
         url: String,
@@ -66,6 +81,11 @@ object Transfer {
          * sitting in — so a caller keeps this handle as well and closes it to stop the bytes now.
          */
         onResponse: (okhttp3.Response) -> Unit = {},
+        /**
+         * How long the size probe may wait for its own answer. A parameter rather than the constant
+         * so a test can make the wait shorter than the suite.
+         */
+        probeTimeoutMs: Long = PROBE_TIMEOUT_MS,
     ): TransferResult {
         val digest = MessageDigest.getInstance("SHA-256")
         var offset = 0L
@@ -105,7 +125,12 @@ object Transfer {
             if (response.code == 416 && offset > 0) {
                 return TransferResult(offset, digest.digest().joinToString("") { "%02x".format(it) })
             }
-            if (!response.isSuccessful) throw HttpStatusException(response.code, request.url.toString())
+            if (!response.isSuccessful) {
+                // A refusal leaves a body behind; closing it hands the connection back instead of
+                // leaving it counted against the host for the life of the process.
+                response.close()
+                throw HttpStatusException(response.code, request.url.toString())
+            }
             val body = response.body
             val partial = offset > 0 && response.code == 206
             if (!partial) {
@@ -118,8 +143,9 @@ object Transfer {
             // A chunked or compressed answer carries no usable length, so progress would be a bare
             // spinner for the whole transfer. One HEAD costs a round trip and gives the real size —
             // and the size of the file on the host is the size of the file either way: the range
-            // response is the same bytes minus what is already on disk.
-            val total = if (remaining > 0) offset + remaining else probeSize(client, url, referer)
+            // response is the same bytes minus what is already on disk. It is bounded: a host that
+            // never answers the HEAD must not hold the GET's bytes hostage.
+            val total = if (remaining > 0) offset + remaining else probeSize(client, url, referer, probeTimeoutMs)
             onProgress(offset, total)
 
             body.byteStream().use { input ->
@@ -161,8 +187,12 @@ object Transfer {
      * The file's full size from a HEAD, or -1 when the host will not say. Asked with the same
      * headers as the GET it stands in for, because a storage domain that wants a token and a
      * referer wants them here too.
+     *
+     * The call gets its own deadline. With a streaming client a HEAD that is accepted but never
+     * answered would otherwise block until the read timeout, and this happens before the first body
+     * byte is read — a transfer stuck at 0 B because the size question was asked.
      */
-    private fun probeSize(client: OkHttpClient, url: String, referer: String?): Long = runCatching {
+    private fun probeSize(client: OkHttpClient, url: String, referer: String?, timeoutMs: Long): Long = runCatching {
         val request = Request.Builder()
             .url(url)
             .head()
@@ -170,8 +200,16 @@ object Transfer {
             .header("Accept-Encoding", "identity")
             .apply { if (referer != null) header("Referer", referer) }
             .build()
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) -1L else response.body.contentLength()
+        val call = client.newCall(request)
+        call.timeout().timeout(timeoutMs.coerceAtLeast(1L), TimeUnit.MILLISECONDS)
+        call.execute().use { response ->
+            if (!response.isSuccessful) {
+                -1L
+            } else {
+                // A HEAD answered with `Content-Length: 0` is a host declining to say, not an empty
+                // file: the transfer already has bytes to read, so zero is not a usable total.
+                response.body.contentLength().takeIf { it > 0 } ?: -1L
+            }
         }
     }.getOrDefault(-1L)
 }

@@ -62,6 +62,7 @@ internal fun DockProgressLayer(
     done: Boolean,
     phase: Float,
     modifier: Modifier = Modifier,
+    indeterminate: Boolean = false,
 ) {
     val scheme = MaterialTheme.colorScheme
     val tone = remember(state, done) { dockFillTone(state, done) }
@@ -117,6 +118,7 @@ internal fun DockProgressLayer(
             tone = tone,
             phase = if (live) phase else 0f,
             live = live,
+            indeterminate = indeterminate,
             primary = scheme.primary,
             tertiary = scheme.tertiary,
             outline = scheme.outline,
@@ -150,10 +152,17 @@ internal fun DrawScope.drawDockMeter(
     sheen: Brush,
     shader: RuntimeShader? = null,
     shaderPaint: Paint? = null,
+    indeterminate: Boolean = false,
 ) {
     val filled = dockFillWidth(size.width, fraction)
     // Always laid down, even at 0 %: a queued row still shows where the fill will arrive.
     drawRect(color = trackColor, size = size)
+    // A transfer whose host published no size has no fraction to draw. Rather than a card that sits
+    // at 0 % for the whole file, the track carries a band travelling with the bytes.
+    if (indeterminate) {
+        if (live) dockIndeterminateSweep(phase, tertiary)
+        return
+    }
     if (filled <= 0f) return
     // The liquid fronts are the edge themselves: their crests need a few dp past the byte position
     // or the clip shaves them back into the straight line every other style draws.
@@ -274,6 +283,34 @@ internal fun DrawScope.drawDockMeter(
         limitedHead(animation, filled, phase, fraction)
         if (dockTint(animation) != null) drawDockTypeScrim()
     }
+}
+
+/**
+ * Where the indeterminate sweep begins for [phase] on a card [width] px wide, with a band [band] px
+ * wide. It enters from off the leading edge and leaves past the trailing one, so the loop has no
+ * visible jump; the same arithmetic is pinned by the meter's tests.
+ */
+internal fun dockSweepStart(width: Float, band: Float, phase: Float): Float {
+    if (width <= 0f || band <= 0f || phase.isNaN()) return 0f
+    return (width + band) * phase.coerceIn(0f, 1f) - band
+}
+
+/**
+ * The bar to draw when the total is unknown: one soft band crossing the track. It says the bytes are
+ * moving without claiming a fraction of a size nobody published.
+ */
+private fun DrawScope.dockIndeterminateSweep(phase: Float, ink: Color) {
+    val band = size.width * 0.42f
+    val start = dockSweepStart(size.width, band, phase)
+    drawRect(
+        brush = Brush.horizontalGradient(
+            listOf(Color.Transparent, ink.copy(alpha = 0.30f), Color.Transparent),
+            startX = start,
+            endX = start + band,
+        ),
+        topLeft = Offset(start, 0f),
+        size = Size(band, size.height),
+    )
 }
 
 /**

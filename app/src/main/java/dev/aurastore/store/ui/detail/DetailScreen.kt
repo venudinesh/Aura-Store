@@ -1157,18 +1157,32 @@ private fun Hairline() {
  */
 @Composable
 private fun TransferStrip(item: DownloadItem) {
-    val percent = stringResource(R.string.percent_int, (item.progress * 100).toInt())
-    val bytes = "${DownloadEngine.humanSize(item.bytesDownloaded)} / ${DownloadEngine.humanSize(item.totalBytes)}"
+    // A host that withheld the length must not turn the strip into "0% · 12 MB / 0 B": the percent
+    // and the total are both unknown, so the strip shows the one number it has and keeps moving.
+    val sized = item.totalBytes > 0
+    val bytes = if (sized) {
+        "${DownloadEngine.humanSize(item.bytesDownloaded)} / ${DownloadEngine.humanSize(item.totalBytes)}"
+    } else {
+        stringResource(R.string.detail_transfer_unknown, DownloadEngine.humanSize(item.bytesDownloaded))
+    }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        LinearProgressIndicator(
-            progress = { item.progress },
-            modifier = Modifier.fillMaxWidth().height(6.dp).clip(PillShape),
-            color = MaterialTheme.colorScheme.primary,
-            trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        )
+        if (sized) {
+            LinearProgressIndicator(
+                progress = { item.progress },
+                modifier = Modifier.fillMaxWidth().height(6.dp).clip(PillShape),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            )
+        } else {
+            LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth().height(6.dp).clip(PillShape),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            )
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "$percent · $bytes",
+                if (sized) "${stringResource(R.string.percent_int, (item.progress * 100).toInt())} · $bytes" else bytes,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),

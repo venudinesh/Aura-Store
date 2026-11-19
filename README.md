@@ -6,7 +6,7 @@
   **A phone shop for Android. It shows you what it checked before it hands you an app.**
 
   <p>
-    <a href="#get-the-app"><img alt="Aura Store 1.8.0" src="https://img.shields.io/badge/download-Aura%20Store%201.8.0-f6feb4?style=for-the-badge"></a>
+    <a href="#get-the-app"><img alt="Aura Store 1.8.1" src="https://img.shields.io/badge/download-Aura%20Store%201.8.1-f6feb4?style=for-the-badge"></a>
     <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.4-7f52ff?style=for-the-badge">
     <img alt="Android" src="https://img.shields.io/badge/Android-8.1%2B-3ddc84?style=for-the-badge">
     <img alt="Licence" src="https://img.shields.io/badge/licence-MIT-22a559?style=for-the-badge">
@@ -62,7 +62,7 @@ keeps working. It just cannot place that folder for you.
   store installed can update themselves. A notification names each app that has one, with the app's
   own icon and its version pair. Apps from elsewhere are matched back by their package name and wait
   for your tap.
-- **Update the store itself.** Settings shows the build as `1.8.0 (10800)` and has *Check now*. When
+- **Update the store itself.** Settings shows the build as `1.8.1 (10801)` and has *Check now*. When
   GitHub has a newer release, a banner under the brand bar names it and offers it without waiting for
   the next launch. The download shows its own bar, its percentage and its byte count, then checks the
   file against the published SHA-256 and hands it to Android's installer.
@@ -113,11 +113,11 @@ None of this makes a downloaded APK safe to run.
 ## Get the app
 
 [Releases](https://github.com/venudinesh/Aura-Store/releases) have their own page. Download
-`Aura-Store-v1.8.0.apk`, open it, and let Android install it.
+`Aura-Store-v1.8.1.apk`, open it, and let Android install it.
 
-1.8.0 carries the project key that 1.6.0 introduced. A 1.5.0 copy downloaded from this page is signed
+1.8.1 carries the project key that 1.6.0 introduced. A 1.5.0 copy downloaded from this page is signed
 with the lost key, so Android refuses to install either over it. Uninstall 1.5.0 once, then install
-1.8.0.
+1.8.1.
 
 1. Open the downloaded file. Android asks whether your browser or file manager may install unknown
    apps. Allow it for that app, then tap Install.

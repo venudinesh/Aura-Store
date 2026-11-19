@@ -296,10 +296,21 @@ object DownloadEngine {
     private val RETRY_DELAYS_MS = longArrayOf(1_000, 3_000, 6_000)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val client: OkHttpClient by lazy {
+
+    /**
+     * The client every transfer shares.
+     *
+     * The read timeout is a **stall** timeout, not a cap on the download: OkHttp applies it to each
+     * socket read, so a slow transfer that keeps producing bytes runs as long as it needs, while a
+     * host that goes silent raises an `IOException` after [Transfer.STALL_TIMEOUT_SECONDS]. That is
+     * what lets the retry loop above resume from the bytes already on disk — with `readTimeout(0)`
+     * a half-open connection never throws, the row never fails, and the only way out is Cancel.
+     */
+    internal val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)
-            .readTimeout(0, TimeUnit.SECONDS) // streaming
+            .readTimeout(Transfer.STALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .writeTimeout(Transfer.STALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .addNetworkInterceptor(SecureTransport.HttpsOnly)
             .build()
     }
@@ -1834,23 +1845,28 @@ object DownloadEngine {
         val text = when {
             current == null -> ""
             current.state == DownloadState.DOWNLOADING -> {
-                val total = if (current.totalBytes > 0) {
-                    humanSize(current.totalBytes)
+                if (current.totalBytes <= 0) {
+                    // A host that published no length must not be reported as "0%" for the whole
+                    // transfer: the bytes are the only true number there is.
+                    context.getString(R.string.notify_progress_unknown, humanSize(current.bytesDownloaded))
                 } else {
-                    context.getString(R.string.notify_size_unknown)
+                    val total = humanSize(current.totalBytes)
+                    val line = context.getString(
+                        R.string.notify_progress,
+                        (current.progress * 100).toInt(),
+                        humanSize(current.bytesDownloaded),
+                        total,
+                    )
+                    // With more than one row in flight the title is a count, so the line names the app
+                    // whose bytes are moving and the others follow as they reach the front.
+                    if (active.size > 1) context.getString(R.string.notify_current, current.title, line) else line
                 }
-                val line = context.getString(
-                    R.string.notify_progress,
-                    (current.progress * 100).toInt(),
-                    humanSize(current.bytesDownloaded),
-                    total,
-                )
-                // With more than one row in flight the title is a count, so the line names the app
-                // whose bytes are moving and the others follow as they reach the front.
-                if (active.size > 1) context.getString(R.string.notify_current, current.title, line) else line
             }
             active.size > 1 -> context.getString(R.string.notify_many_note)
-            current.state == DownloadState.VERIFYING -> context.getString(R.string.notify_verifying)
+            current.state == DownloadState.VERIFYING -> context.getString(
+                // An archive's wait is the copy into Downloads, not a package parse.
+                if (current.archive) R.string.row_saving_archive else R.string.notify_verifying,
+            )
             else -> current.state.name.lowercase().replaceFirstChar { it.uppercase() }
         }
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)

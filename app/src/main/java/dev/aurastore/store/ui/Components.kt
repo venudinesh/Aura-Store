@@ -901,6 +901,9 @@ internal fun downloadRowStatus(item: DownloadItem): StatusLine = when (item.stat
         // A bundle's wait is longer than a parse: the set comes out of the archive before it is read.
         item.dataFile -> StatusLine(R.string.row_reading_archive)
         item.isBundle -> StatusLine(R.string.row_unpacking)
+        // An archive is not parsed; the wait is the copy into Downloads, and calling it "verifying
+        // package" described a step a zip never takes.
+        item.archive -> StatusLine(R.string.row_saving_archive)
         else -> StatusLine(R.string.row_verifying)
     }
     DownloadState.READY -> when {

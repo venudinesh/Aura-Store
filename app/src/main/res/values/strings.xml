@@ -97,6 +97,10 @@
     <string name="dock_queued">Queued</string>
     <string name="dock_verifying">Verifying the download…</string>
     <string name="dock_paused">Paused at %1$d%%</string>
+    <string name="dock_paused_unknown">Paused · %1$s downloaded</string>
+    <!-- A transfer whose host published no size has no percentage to show. The byte count is the
+         one true number, so the line leads with it instead of a 0% that never moves. -->
+    <string name="dock_downloading_unknown">%1$s downloaded · %2$s</string>
     <string name="dock_needs_permission">Downloaded · allow installs to finish</string>
     <!-- The ready line is the one sentence ``dl_state_ready`` already says. It used to carry the
          file size, but the panel is only as wide as the bar under it and "Downloaded · 336.0 MB"
@@ -270,6 +274,7 @@
     <string name="row_reading_archive">Reading archive…</string>
     <string name="row_unpacking">Unpacking bundle…</string>
     <string name="row_verifying">Verifying package…</string>
+    <string name="row_saving_archive">Saving to Downloads/Aura Store…</string>
     <string name="row_ready_to_add">Ready to add</string>
     <string name="row_needs_uninstall">Needs an uninstall</string>
     <string name="row_installing">Installing…</string>
@@ -315,6 +320,7 @@
     <string name="detail_whats_new">What\'s new</string>
     <string name="detail_screenshots">Screenshots</string>
     <string name="detail_transfer_speed">%1$s/s</string>
+    <string name="detail_transfer_unknown">%1$s downloaded</string>
     <string name="detail_unknown_date">an unknown date</string>
     <string name="detail_notes_none">No release notes are published for this build.</string>
     <plurals name="detail_versions_listed">
@@ -543,7 +549,7 @@
     <string name="notify_many_note">In progress</string>
     <string name="notify_progress">%1$d%% · %2$s / %3$s</string>
     <string name="notify_current">%1$s · %2$s</string>
-    <string name="notify_size_unknown">?</string>
+    <string name="notify_progress_unknown">%1$s downloaded</string>
     <string name="notify_verifying">Verifying package…</string>
     <string name="notify_prompt_title">Show download progress</string>
     <string name="notify_prompt_body">A single silent notification shows live progress while packages download, then leaves when the queue is done. Nothing else is sent.</string>

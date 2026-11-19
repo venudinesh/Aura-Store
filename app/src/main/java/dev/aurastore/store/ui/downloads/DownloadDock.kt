@@ -218,6 +218,11 @@ fun DownloadDock(
     val fontScale = LocalDensity.current.fontScale
     val percent = (item.progress * 100).toInt().coerceIn(0, 100)
     val active = item.isActive
+    // A host can send a zip with no Content-Length and refuse the HEAD that would supply it. The
+    // meter must then say "moving" instead of drawing a permanent 0 %: an empty bar beside a byte
+    // count that keeps rising is the one thing that reads as a download that will never end.
+    val sized = item.totalBytes > 0
+    val indeterminate = item.state == DownloadState.DOWNLOADING && !sized
     // The ring and the bar are motion, not decoration: a queued row has not moved a byte, so its ring
     // must be still even though the row is still "active" enough to offer Pause.
     val moving = item.state == DownloadState.DOWNLOADING || item.state == DownloadState.VERIFYING
@@ -302,6 +307,7 @@ fun DownloadDock(
                 state = item.state,
                 done = ready,
                 phase = phase,
+                indeterminate = indeterminate,
                 modifier = Modifier.matchParentSize(),
             )
             Row(
@@ -644,16 +650,31 @@ internal fun rememberDockPhase(): Float {
 /** The one line under the title: enough to see whether it is moving, not a second stats page. */
 @Composable
 private fun statusLine(item: DownloadItem, state: DownloadState, percent: Int): String = when (state) {
-    DownloadState.DOWNLOADING -> stringResource(
-        R.string.dock_downloading,
-        percent,
-        TransferRate.formatSpeed(item.bytesPerSecond),
-        item.etaSeconds?.let { TransferRate.formatEta(it) }
-            ?: DownloadEngine.humanSize((item.totalBytes - item.bytesDownloaded).coerceAtLeast(0L)),
-    )
+    DownloadState.DOWNLOADING -> if (item.totalBytes > 0) {
+        stringResource(
+            R.string.dock_downloading,
+            percent,
+            TransferRate.formatSpeed(item.bytesPerSecond),
+            item.etaSeconds?.let { TransferRate.formatEta(it) }
+                ?: DownloadEngine.humanSize((item.totalBytes - item.bytesDownloaded).coerceAtLeast(0L)),
+        )
+    } else {
+        stringResource(
+            R.string.dock_downloading_unknown,
+            DownloadEngine.humanSize(item.bytesDownloaded),
+            TransferRate.formatSpeed(item.bytesPerSecond),
+        )
+    }
     DownloadState.QUEUED -> stringResource(R.string.dock_queued)
-    DownloadState.VERIFYING -> stringResource(R.string.dock_verifying)
-    DownloadState.PAUSED -> stringResource(R.string.dock_paused, percent)
+    DownloadState.VERIFYING -> stringResource(
+        // An archive is copied into Downloads here, not parsed as a package.
+        if (item.archive) R.string.row_saving_archive else R.string.dock_verifying,
+    )
+    DownloadState.PAUSED -> if (item.totalBytes > 0) {
+        stringResource(R.string.dock_paused, percent)
+    } else {
+        stringResource(R.string.dock_paused_unknown, DownloadEngine.humanSize(item.bytesDownloaded))
+    }
     DownloadState.NEEDS_PERMISSION -> stringResource(R.string.dock_needs_permission)
     DownloadState.AWAITING_CONFIRMATION -> stringResource(R.string.dock_awaiting)
     // No file size here, deliberately: the panel shares the bar's width, and the size pushed the
