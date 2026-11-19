@@ -542,8 +542,11 @@
     </plurals>
     <string name="notify_many_note">In progress</string>
     <string name="notify_progress">%1$d%% · %2$s / %3$s</string>
+    <string name="notify_current">%1$s · %2$s</string>
     <string name="notify_size_unknown">?</string>
     <string name="notify_verifying">Verifying package…</string>
+    <string name="notify_prompt_title">Show download progress</string>
+    <string name="notify_prompt_body">A single silent notification shows live progress while packages download, then leaves when the queue is done. Nothing else is sent.</string>
 
     <!-- Auto-update notifications -->
     <string name="updates_channel">Updates</string>

@@ -1815,7 +1815,8 @@ object DownloadEngine {
 
     fun buildNotification(context: Context): Notification {
         val active = _items.value.filter { it.isActive }
-        val current = active.firstOrNull { it.state == DownloadState.DOWNLOADING } ?: active.firstOrNull()
+        val downloading = active.filter { it.state == DownloadState.DOWNLOADING }
+        val current = downloading.firstOrNull() ?: active.firstOrNull()
         val contentIntent = PendingIntent.getActivity(
             context,
             0,
@@ -1832,20 +1833,23 @@ object DownloadEngine {
         }
         val text = when {
             current == null -> ""
-            active.size > 1 -> context.getString(R.string.notify_many_note)
             current.state == DownloadState.DOWNLOADING -> {
                 val total = if (current.totalBytes > 0) {
                     humanSize(current.totalBytes)
                 } else {
                     context.getString(R.string.notify_size_unknown)
                 }
-                context.getString(
+                val line = context.getString(
                     R.string.notify_progress,
                     (current.progress * 100).toInt(),
                     humanSize(current.bytesDownloaded),
                     total,
                 )
+                // With more than one row in flight the title is a count, so the line names the app
+                // whose bytes are moving and the others follow as they reach the front.
+                if (active.size > 1) context.getString(R.string.notify_current, current.title, line) else line
             }
+            active.size > 1 -> context.getString(R.string.notify_many_note)
             current.state == DownloadState.VERIFYING -> context.getString(R.string.notify_verifying)
             else -> current.state.name.lowercase().replaceFirstChar { it.uppercase() }
         }
@@ -1856,9 +1860,19 @@ object DownloadEngine {
             .setOngoing(active.isNotEmpty())
             .setOnlyAlertOnce(true)
             .setContentIntent(contentIntent)
-        if (current != null && current.state == DownloadState.DOWNLOADING && current.totalBytes > 0) {
-            builder.setProgress(100, (current.progress * 100).toInt(), false)
-        } else if (current != null && current.state == DownloadState.DOWNLOADING) {
+        // The bar tracks every transfer, not just the first row: with three packages in flight the
+        // notification has to move by the whole queue's bytes or it reads as stuck while they finish.
+        if (downloading.isNotEmpty()) {
+            val total = downloading.sumOf { it.totalBytes }
+            val known = downloading.all { it.totalBytes > 0 }
+            if (known && total > 0) {
+                val done = downloading.sumOf { it.bytesDownloaded }
+                val percent = ((done * 100) / total).toInt().coerceIn(0, 100)
+                builder.setProgress(100, percent, false)
+            } else {
+                builder.setProgress(0, 0, true)
+            }
+        } else if (current != null && current.state == DownloadState.VERIFYING) {
             builder.setProgress(0, 0, true)
         }
         return builder.build()

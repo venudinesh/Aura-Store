@@ -13,6 +13,7 @@ import androidx.activity.ComponentActivity
 import androidx.annotation.StringRes
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -87,6 +88,8 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.aurastore.store.data.AppState
@@ -462,6 +465,24 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
     val activeDownloads by remember {
         DownloadEngine.items.map { rows -> rows.count { it.isActive } }.distinctUntilChanged()
     }.collectAsStateWithLifecycle(0)
+    // A refused notification permission used to leave the progress notification silent for good.
+    // The first launch asks once; this is the one follow-up, at the moment a download starts, so the
+    // ask is attached to the thing the notification is for. Spent once, by [Settings].
+    val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    var notifPrompt by remember { mutableStateOf(false) }
+    var notifChecked by remember { mutableStateOf(false) }
+    LaunchedEffect(activeDownloads) {
+        if (activeDownloads == 0) {
+            notifChecked = false
+            return@LaunchedEffect
+        }
+        if (notifChecked) return@LaunchedEffect
+        notifChecked = true
+        if (NotificationManagerCompat.from(context).areNotificationsEnabled()) return@LaunchedEffect
+        if (Settings.notificationsNudged.value) return@LaunchedEffect
+        Settings.markNotificationsNudged(context)
+        notifPrompt = true
+    }
     // The button wears the icon of the row it is counting. Only the URL travels: a progress tick
     // rebuilds the row, and the shell must not see that. The URL changes when the first live row
     // changes, which is once per download rather than four times a second.
@@ -941,6 +962,48 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
     val pickerRequest by SourcePicker.request.collectAsStateWithLifecycle()
     if (pickerRequest != null) {
         SourcePickerSheet(onDismiss = { SourcePicker.close() })
+    }
+
+    // The progress notification is the only reason this dialog exists. Asking at the first download
+    // puts the permission where the notification is, and the settings route covers a refusal Android
+    // will no longer show a dialog for.
+    if (notifPrompt) {
+        AlertDialog(
+            onDismissRequest = { notifPrompt = false },
+            title = { Text(stringResource(R.string.notify_prompt_title)) },
+            text = { Text(stringResource(R.string.notify_prompt_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        notifPrompt = false
+                        val activity = context.findActivity()
+                        // A refusal Android will not ask about again cannot be fixed by launching the
+                        // permission dialog: that call returns instantly and shows nothing. The app's
+                        // own notification page is the route that can still change the answer.
+                        val rationale = activity != null && ActivityCompat.shouldShowRequestPermissionRationale(
+                            activity,
+                            Manifest.permission.POST_NOTIFICATIONS,
+                        )
+                        val canAsk = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            (!Settings.notificationsAsked.value || rationale)
+                        if (canAsk) {
+                            Settings.markNotificationsAsked(context)
+                            notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            context.startActivity(
+                                Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName),
+                            )
+                        }
+                    },
+                ) { Text(stringResource(R.string.action_allow)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { notifPrompt = false }) {
+                    Text(stringResource(R.string.action_close))
+                }
+            },
+        )
     }
 
     // Back at the root asks rather than acts. Both answers are one tap, and the dialog says what

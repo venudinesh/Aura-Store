@@ -283,6 +283,7 @@ object Settings {
     private const val KEY_LAST_SYNC = "last_sync"
     private const val KEY_SOURCES = "enabled_sources"
     private const val KEY_NOTIF_ASKED = "notifications_asked"
+    private const val KEY_NOTIF_NUDGED = "notifications_nudged"
     private const val KEY_TOUR_SEEN = "tour_seen"
     private const val KEY_AVATAR = "profile_avatar"
     private const val KEY_AVATAR_FRAME = "profile_avatar_frame"
@@ -413,6 +414,16 @@ object Settings {
     private val _notificationsAsked = MutableStateFlow(false)
     val notificationsAsked: StateFlow<Boolean> = _notificationsAsked.asStateFlow()
 
+    /**
+     * Whether a download has already asked the user to turn notifications back on.
+     *
+     * The first-launch ask is spent once per install; a refusal used to leave the progress
+     * notification silent with no second word about it. This is that second word, and it is spent
+     * once too: a prompt on every download would be the noise the notification itself avoids.
+     */
+    private val _notificationsNudged = MutableStateFlow(false)
+    val notificationsNudged: StateFlow<Boolean> = _notificationsNudged.asStateFlow()
+
     /** Whether the first-open tour has been finished or skipped. */
     private val _tourSeen = MutableStateFlow(false)
     val tourSeen: StateFlow<Boolean> = _tourSeen.asStateFlow()
@@ -507,6 +518,7 @@ object Settings {
         }.getOrDefault(BackgroundTheme.NONE)
         _amoled.value = prefs.getBoolean(KEY_AMOLED, false)
         _notificationsAsked.value = prefs.getBoolean(KEY_NOTIF_ASKED, false)
+        _notificationsNudged.value = prefs.getBoolean(KEY_NOTIF_NUDGED, false)
         _tourSeen.value = prefs.getBoolean(KEY_TOUR_SEEN, false)
         _avatar.value = prefs.getString(KEY_AVATAR, null)?.takeIf { it.isNotBlank() }
         _avatarFrame.value = AvatarFrame.from(prefs.getString(KEY_AVATAR_FRAME, null))
@@ -598,6 +610,14 @@ object Settings {
         _notificationsAsked.value = true
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
             putBoolean(KEY_NOTIF_ASKED, true)
+        }
+    }
+
+    fun markNotificationsNudged(context: Context) {
+        if (_notificationsNudged.value) return
+        _notificationsNudged.value = true
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putBoolean(KEY_NOTIF_NUDGED, true)
         }
     }
 
