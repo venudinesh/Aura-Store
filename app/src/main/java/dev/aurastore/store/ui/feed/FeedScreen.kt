@@ -66,6 +66,7 @@ import dev.aurastore.store.ui.LoadingRail
 import dev.aurastore.store.ui.PagingFooter
 import dev.aurastore.store.ui.PlayChip
 import dev.aurastore.store.ui.ScrollToTopOnRetap
+import dev.aurastore.store.ui.ScrollRevealHost
 import dev.aurastore.store.ui.SectionHeader
 import dev.aurastore.store.ui.StateMessage
 import dev.aurastore.store.ui.StatusLine
@@ -889,6 +890,7 @@ fun FeedScreen(
         onRefresh = { viewModel.refresh() },
         modifier = modifier,
     ) {
+    ScrollRevealHost(listState) {
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize().then(serverSwipe), contentPadding = PaddingValues(bottom = 28.dp + LocalNavBarInset.current)) {
         item {
             Text(
@@ -1043,6 +1045,7 @@ fun FeedScreen(
                 onLoadMore = viewModel::loadMoreServer,
             )
         }
+    }
     }
     }
 

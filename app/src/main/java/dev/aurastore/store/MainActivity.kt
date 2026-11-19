@@ -65,6 +65,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -119,6 +120,7 @@ import dev.aurastore.store.ui.GlyphIcon
 import dev.aurastore.store.ui.LocalRouteScope
 import dev.aurastore.store.ui.NAV_TABS
 import dev.aurastore.store.ui.LocalSharedScope
+import dev.aurastore.store.ui.LocalSharedTarget
 import dev.aurastore.store.ui.Route
 import dev.aurastore.store.ui.rememberTabsPillWidth
 import dev.aurastore.store.ui.decodeRoute
@@ -370,6 +372,9 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
     val appsScroll = rememberLazyListState()
     val browseScroll = rememberLazyListState()
     val youScroll = rememberLazyListState()
+    // The post whose icon is flying. Zero means no flight: every shelf card then renders without a
+    // shared element, which is what keeps a fast fling out of the transition scope's bookkeeping.
+    var sharedIconPost by remember { mutableLongStateOf(0L) }
     // The pushed pages, bottom first. Everything that used to be its own flag lives here now, so back
     // is a pop and "where was I" is the whole list rather than whichever flag was set last.
     var stack by rememberSaveable { mutableStateOf(listOf<String>()) }
@@ -388,6 +393,9 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
     /** Pushes [route], collapsing a repeat of the page already showing. */
     fun push(route: Route) {
         if (!stacksOn(top, route)) return
+        // The card this page came from is the only one that needs a shared icon. Naming it here, in
+        // the same snapshot as the push, lets the source card and the page register together.
+        if (route is Route.Detail) sharedIconPost = route.postId
         stack = stack + encodeRoute(route)
     }
 
@@ -637,6 +645,7 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
                     CompositionLocalProvider(
                         LocalSharedScope provides shared,
                         LocalRouteScope provides this,
+                        LocalSharedTarget provides sharedIconPost,
                     ) {
                         when (route) {
                             is Screen.Source -> SourceScreen(

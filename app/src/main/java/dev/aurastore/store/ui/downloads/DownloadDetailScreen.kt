@@ -248,6 +248,7 @@ private fun stateLine(item: DownloadItem): String = when (item.state) {
     }
     DownloadState.READY -> when {
         item.dataFile -> stringResource(R.string.dl_state_data_ready)
+        item.archive -> stringResource(R.string.dl_state_saved)
         item.uninstallFirst -> stringResource(R.string.dl_state_waiting_uninstall)
         else -> stringResource(R.string.dl_state_ready)
     }
@@ -276,7 +277,11 @@ private fun Actions(item: DownloadItem, actions: StoreActions) {
             DownloadState.FAILED ->
                 Button(onClick = { actions.resume(item) }) { Text(stringResource(R.string.action_retry)) }
             DownloadState.READY, DownloadState.NEEDS_PERMISSION, DownloadState.AWAITING_CONFIRMATION ->
-                if (item.uninstallFirst) {
+                if (item.archive) {
+                    Button(onClick = { actions.saveToDevice(item) }) {
+                        Text(stringResource(R.string.row_menu_save))
+                    }
+                } else if (item.uninstallFirst) {
                     Button(onClick = { actions.uninstallFirst(item) }) {
                         Text(stringResource(R.string.action_uninstall))
                     }

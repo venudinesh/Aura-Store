@@ -51,6 +51,7 @@ import dev.aurastore.store.ui.LoadingRail
 import dev.aurastore.store.ui.PagingFooter
 import dev.aurastore.store.ui.PlayBadge
 import dev.aurastore.store.ui.PlayChip
+import dev.aurastore.store.ui.ScrollRevealHost
 import dev.aurastore.store.ui.SectionHeader
 import dev.aurastore.store.ui.StateMessage
 import dev.aurastore.store.ui.StatusLine
@@ -333,6 +334,7 @@ fun CategoryScreen(
 
     LaunchedEffect(Unit) { viewModel.start() }
 
+    ScrollRevealHost(listState) {
     LazyColumn(
         state = listState,
         modifier = modifier.fillMaxSize(),
@@ -488,6 +490,7 @@ fun CategoryScreen(
                 )
             }
         }
+    }
     }
 
     // The next page is asked for while there is still screen left to read, so it arrives before the

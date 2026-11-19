@@ -66,7 +66,11 @@ class StoreActions(
             DownloadState.PAUSED -> RowAction(ActionKind.PAUSED)
             DownloadState.READY -> RowAction(
                 ActionKind.INSTALL,
-                label = if (item.uninstallFirst) context.getString(R.string.action_uninstall) else null,
+                label = when {
+                    item.archive -> context.getString(R.string.row_menu_save)
+                    item.uninstallFirst -> context.getString(R.string.action_uninstall)
+                    else -> null
+                },
             )
             DownloadState.NEEDS_PERMISSION -> RowAction(ActionKind.PERMISSION)
             // The sheet is open somewhere behind this app and only the user can answer it; the row
@@ -115,7 +119,7 @@ class StoreActions(
             item != null && item.state == DownloadState.READY && item.uninstallFirst ->
                 uninstallFirst(item)
             item != null && (item.state == DownloadState.READY || item.state == DownloadState.AWAITING_CONFIRMATION) ->
-                DownloadEngine.install(context, item.id)
+                if (item.archive) saveToDevice(item) else DownloadEngine.install(context, item.id)
             item != null && item.state == DownloadState.PAUSED -> DownloadEngine.resume(context, item.id)
             item != null && item.state == DownloadState.FAILED -> DownloadEngine.retry(context, item.id)
             item != null && item.state == DownloadState.INSTALLED ->
@@ -244,6 +248,10 @@ class StoreActions(
     fun resume(item: DownloadItem) = DownloadEngine.resume(context, item.id)
 
     fun install(item: DownloadItem) {
+        if (item.archive) {
+            saveToDevice(item)
+            return
+        }
         if (item.dataFile) {
             place(item)
             return
@@ -383,19 +391,24 @@ class StoreActions(
         Installer.uninstall(context, pkg)
     }
 
-    /** Copies a verified file into Downloads/AuraStore so it can be kept after the queue clears. */
+    /** Copies a verified file into Downloads/Aura Store so it can be kept after the queue clears. */
     fun saveToDevice(item: DownloadItem) {
         scope.launch {
-            val file = item.localPath?.let { File(it) }
-            // A game's archive keeps its own extension; forcing .apk onto an .obb produces a file
-            // nothing will open.
-            val extension = item.fileName.substringAfterLast('.', "apk").takeIf { it.length <= 5 } ?: "apk"
-            val safeName = "${item.title}-${item.versionLabel}"
-                .replace(Regex("[\\\\/:*?\"<>|]"), "_")
-                .take(80) + ".$extension"
-            val where = withContext(Dispatchers.IO) {
-                if (file == null) null else ApkExport.save(context, file, safeName)
+            // A package is saved as title-version; an archive keeps the name it was downloaded with,
+            // because the extension is what says a .zip, .rar or .iso is not an installer.
+            val name = ApkExport.savedName(item.fileName, item.title, item.versionLabel)
+            // The existence check comes first: a row whose cache was cleared can still point at a
+            // copy that is already in Downloads, and that copy is the answer, not "nothing to save".
+            if (withContext(Dispatchers.IO) { ApkExport.exists(context, name) }) {
+                context.toast(R.string.toast_file_exists, name)
+                return@launch
             }
+            val file = item.localPath?.let { File(it) }?.takeIf { it.isFile }
+            if (file == null) {
+                context.toast(R.string.toast_nothing_to_save)
+                return@launch
+            }
+            val where = withContext(Dispatchers.IO) { ApkExport.save(context, file, name) }
             if (where == null) context.toast(R.string.toast_nothing_to_save)
             else context.toast(R.string.toast_saved_to, where)
         }

@@ -68,6 +68,7 @@ import dev.aurastore.store.ui.Glyph
 import dev.aurastore.store.ui.GlyphIcon
 import dev.aurastore.store.ui.LoadingRail
 import dev.aurastore.store.ui.PlayChip
+import dev.aurastore.store.ui.ScrollRevealHost
 import dev.aurastore.store.ui.SectionHeader
 import dev.aurastore.store.ui.StateMessage
 import dev.aurastore.store.ui.footerFailureText
@@ -342,6 +343,7 @@ fun SearchScreen(
         if (nearTheEnd && activeSite?.id == SourceId.LITEAPKS) viewModel.loadMore()
     }
 
+    ScrollRevealHost(listState) {
     LazyColumn(modifier = modifier, state = listState, contentPadding = PaddingValues(bottom = 28.dp + LocalNavBarInset.current)) {
         // No page title: the tab is Search, the field is the first thing on it, and a 36 sp "Search"
         // above a field that already says "Search for apps & games" was a heading explaining itself.
@@ -632,6 +634,7 @@ fun SearchScreen(
                 }
             }
         }
+    }
     }
 }
 

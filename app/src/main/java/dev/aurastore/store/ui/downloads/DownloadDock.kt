@@ -110,7 +110,13 @@ internal fun dockCandidates(items: List<DownloadItem>): List<DownloadItem> {
     return group(DownloadState.DOWNLOADING, DownloadState.VERIFYING) +
         group(DownloadState.QUEUED) +
         group(DownloadState.PAUSED) +
-        group(DownloadState.READY, DownloadState.NEEDS_PERMISSION, DownloadState.AWAITING_CONFIRMATION)
+        // A saved archive has no next action: its file already sits in Downloads and the 3-dots menu
+        // is where a second look belongs. Keeping it here would put an Install button on a zip.
+        newest.filter {
+            (it.state == DownloadState.READY && !it.archive) ||
+                it.state == DownloadState.NEEDS_PERMISSION ||
+                it.state == DownloadState.AWAITING_CONFIRMATION
+        }
 }
 
 /**
@@ -654,7 +660,11 @@ private fun statusLine(item: DownloadItem, state: DownloadState, percent: Int): 
     // sentence past the row so it read "Downloaded · 336…". The action button already says what the
     // state means, and the size is in the download's details sheet.
     DownloadState.READY -> stringResource(
-        if (item.uninstallFirst) R.string.row_needs_uninstall else R.string.dl_state_ready,
+        when {
+            item.archive -> R.string.dl_state_saved
+            item.uninstallFirst -> R.string.row_needs_uninstall
+            else -> R.string.dl_state_ready
+        },
     )
     DownloadState.INSTALLING -> stringResource(R.string.dl_state_installing)
     DownloadState.INSTALLED -> stringResource(R.string.dl_state_installed)

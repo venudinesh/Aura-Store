@@ -27,11 +27,14 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -63,6 +66,16 @@ val LocalSharedScope = staticCompositionLocalOf<SharedTransitionScope?> { null }
 val LocalRouteScope = staticCompositionLocalOf<AnimatedVisibilityScope?> { null }
 
 /**
+ * The one post whose icon is the source of the flight in progress.
+ *
+ * A [SharedTransitionScope] tracks every registered element on every layout pass, and a shelf has
+ * dozens of cards on screen at once: registering all of them made a fast fling pay for bounds it
+ * would never use. Only the card the open page came from can be the source of a flight, so only that
+ * card carries the modifier; the detail page pins its own icon with `pin = true`.
+ */
+val LocalSharedTarget = compositionLocalOf { 0L }
+
+/**
  * The icon that morphs between a list row and the page it opens.
  *
  * Only the icon is shared. The title beside it goes from a row's small type to a page's display type,
@@ -71,10 +84,14 @@ val LocalRouteScope = staticCompositionLocalOf<AnimatedVisibilityScope?> { null 
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-fun Modifier.sharedIcon(postId: Long): Modifier {
+fun Modifier.sharedIcon(postId: Long, pin: Boolean = false): Modifier {
     val transition = LocalSharedScope.current
     val route = LocalRouteScope.current
     if (postId <= 0 || transition == null || route == null) return this
+    // The read is the point: when the shell names a new source, that card recomposes and becomes the
+    // shared element for the push that is happening in the same snapshot. A pinned icon never reads
+    // the target, so the detail page does not recompose when the next card is chosen.
+    if (!pin && postId != LocalSharedTarget.current) return this
     return with(transition) {
         // The flight gets its own spec rather than the library's default, because the card opening into
         // its page is the one movement in the app that has to read as one object travelling a distance.
@@ -135,13 +152,22 @@ fun Modifier.playClickable(
  * Keyed on [generation] so it runs once per load: a row that replayed its entrance every time the list
  * recycled it would animate forever while the user scrolled. That is why a feed's rails pass the
  * ViewModel's own load counter as the generation and their position as the index.
+ *
+ * A card first composed while its list is already moving arrived with the finger, not with the load,
+ * so it starts in place. Fading and lifting every row that a fling brings in turned a scroll into a
+ * stutter: the page was spending its frame on entrances for rows the user had already passed.
  */
 @Composable
 fun Modifier.playEnter(generation: Any? = Unit, index: Int = 0, rise: Float = 12f): Modifier {
     if (!PlayMotion.enabled) return this
     val delay = staggerDelay(index)
-    val visible = remember(generation) { mutableStateOf(false) }
-    LaunchedEffect(generation) { visible.value = true }
+    val moving = LocalScrollReveal.current?.anyMoving == true
+    // Saved, not merely remembered: a row scrolled out and back is a new composition, and it must
+    // not replay the reveal it already gave. A row that arrives while the list moves starts settled.
+    val visible = rememberSaveable(generation) { mutableStateOf(moving) }
+    if (!visible.value) {
+        LaunchedEffect(generation) { visible.value = true }
+    }
     val progress by animateFloatAsState(
         targetValue = if (visible.value) 1f else 0f,
         animationSpec = PlayMotion.spec(PlayMotion.MEDIUM, delay, EmphasizedDecelerateEasing),
@@ -151,6 +177,32 @@ fun Modifier.playEnter(generation: Any? = Unit, index: Int = 0, rise: Float = 12
         alpha = progress
         translationY = (1f - progress) * rise.dp.toPx()
     }
+}
+
+/**
+ * Whether the list a card is composed into is already moving.
+ *
+ * A fling composes cards faster than any entrance can settle. The flag is read only at composition,
+ * never observed, so flipping it does not recompose a single row; the next row to arrive reads it and
+ * decides once whether the reveal still belongs to the page. Nested lists chain to their parent: a
+ * rail inside a scrolling column is moving with the column even when the rail itself is still.
+ */
+class ScrollReveal internal constructor(private val parent: ScrollReveal?) {
+    @Volatile internal var moving = false
+    val anyMoving: Boolean get() = moving || parent?.anyMoving == true
+}
+
+val LocalScrollReveal = staticCompositionLocalOf<ScrollReveal?> { null }
+
+/** Tracks [state] for the cards inside [content], so a card entering mid-fling skips its entrance. */
+@Composable
+fun ScrollRevealHost(state: LazyListState, content: @Composable () -> Unit) {
+    val parent = LocalScrollReveal.current
+    val gate = remember(state) { ScrollReveal(parent) }
+    LaunchedEffect(state) {
+        snapshotFlow { state.isScrollInProgress }.collect { gate.moving = it }
+    }
+    CompositionLocalProvider(LocalScrollReveal provides gate, content = content)
 }
 
 /**

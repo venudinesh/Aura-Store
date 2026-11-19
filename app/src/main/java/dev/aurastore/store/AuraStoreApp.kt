@@ -8,7 +8,6 @@ import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
-import coil3.request.crossfade
 import dev.aurastore.store.auto.AutoUpdate
 import dev.aurastore.store.data.Settings
 import dev.aurastore.store.data.PackLibrary
@@ -51,7 +50,9 @@ class AuraStoreApp : Application(), SingletonImageLoader.Factory {
     override fun newImageLoader(context: PlatformContext): ImageLoader =
         ImageLoader.Builder(context)
             .components { add(OkHttpNetworkFetcherFactory()) }
-            .crossfade(true)
+            // No crossfade. A fade is an animation per image, and a fast scroll asks for a dozen
+            // images at once: the list was spending its frames fading cards it had already passed.
+            // The slot's own fill shows until the picture lands, which is how Play's shelves read.
             .diskCache {
                 DiskCache.Builder()
                     .directory(cacheDir.resolve("image_cache").toOkioPath())

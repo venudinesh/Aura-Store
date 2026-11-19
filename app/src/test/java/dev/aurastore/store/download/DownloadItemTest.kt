@@ -162,6 +162,21 @@ class DownloadItemTest {
     }
 
     @Test
+    fun `only something Android can install is not an archive`() {
+        fun named(name: String) = row().copy(fileName = name)
+        assertFalse(named("Mighty.apk").archive)
+        assertFalse(named("Mighty.APK").archive)
+        assertFalse(named("bundle.xapk").archive)
+        assertFalse(named("bundle.apks").archive)
+        assertTrue(named("game data.zip").archive)
+        assertTrue(named("pack.rar").archive)
+        assertTrue(named("disc.iso").archive)
+        assertTrue(named("download").archive)
+        // An expansion file has its own destination, even when the catalogue ships it as a zip.
+        assertFalse(named("com.game.zip").copy(dataFile = true).archive)
+    }
+
+    @Test
     fun `clearing the list takes rows whose transfer is over`() {
         // A verified build waiting for Install is finished downloading. Leaving READY out made the
         // button do nothing on a queue of ready rows, so it is disposable now; paused and failed

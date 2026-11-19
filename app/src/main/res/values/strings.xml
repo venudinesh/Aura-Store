@@ -89,6 +89,7 @@
     <string name="dl_state_data_ready">Data ready to add</string>
     <string name="dl_state_waiting_uninstall">Waiting for the current app to be removed</string>
     <string name="dl_state_ready">Ready to install</string>
+    <string name="dl_state_saved">Saved to Downloads/Aura Store</string>
 
     <!-- The floating download dock above the navigation bar. One line per state: the panel is a
          control surface, so every sentence has to fit beside an icon and a button. -->
@@ -252,6 +253,7 @@
     <string name="toast_link_copied">Download link copied</string>
     <string name="toast_no_newer">No newer build is published for this app</string>
     <string name="toast_saved_to">Saved to %1$s</string>
+    <string name="toast_file_exists">Downloads/Aura Store already has %1$s</string>
     <string name="toast_nothing_to_save">There is no downloaded file to save</string>
     <string name="toast_file_deleted">Deleted the downloaded file</string>
     <plurals name="toast_extra_queued">
@@ -644,7 +646,7 @@
     <string name="settings_queue_summary">%1$d in the queue · %2$s cached</string>
     <string name="settings_clear_finished">Clear finished</string>
     <string name="settings_save_apks">Save downloaded APKs</string>
-    <string name="settings_save_apks_note">Saved copies go to Downloads/AuraStore and survive clearing the queue</string>
+    <string name="settings_save_apks_note">Saved copies go to Downloads/Aura Store and survive clearing the queue</string>
     <string name="settings_about_body">A Play-Store-shaped client for the liteapks catalogue. Every download is hashed while streaming and parsed before it can be installed.</string>
     <string name="settings_about_disclaimer">Not affiliated with Google Play or with the apps it lists.</string>
     <string name="settings_done">Done</string>

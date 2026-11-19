@@ -477,7 +477,7 @@ fun DetailScreen(
                     // to fly to while the page is still fetching, and the one movement that makes the
                     // storefront read as a single surface only plays on a warm cache.
                     Box(
-                        Modifier.size(72.dp).clip(ArtShape).sharedIcon(postId)
+                        Modifier.size(72.dp).clip(ArtShape).sharedIcon(postId, pin = true)
                             .background(MaterialTheme.colorScheme.surfaceVariant),
                     )
                     Box(
@@ -1098,7 +1098,11 @@ private fun actionFor(record: InstallRecord?, item: DownloadItem?): RowAction = 
     DownloadState.PAUSED -> RowAction(ActionKind.PAUSED)
     DownloadState.READY -> RowAction(
         ActionKind.INSTALL,
-        label = if (item.uninstallFirst) stringResource(R.string.action_uninstall) else null,
+        label = when {
+            item.archive -> stringResource(R.string.row_menu_save)
+            item.uninstallFirst -> stringResource(R.string.action_uninstall)
+            else -> null
+        },
     )
     DownloadState.NEEDS_PERMISSION -> RowAction(ActionKind.PERMISSION)
     DownloadState.AWAITING_CONFIRMATION -> RowAction(ActionKind.INSTALL)
@@ -1122,6 +1126,8 @@ private fun installCaption(action: RowAction, item: DownloadItem?, record: Insta
         // retranslate a failure that happened in another one.
         ActionKind.FAILED -> item?.error ?: stringResource(R.string.caption_failed)
         else -> when {
+            item?.state == DownloadState.READY && item.archive ->
+                item.notice ?: stringResource(R.string.dl_state_saved)
             item?.state == DownloadState.READY && item.uninstallFirst ->
                 item.notice ?: stringResource(R.string.dl_state_waiting_uninstall)
             item?.state == DownloadState.AWAITING_CONFIRMATION -> stringResource(R.string.caption_awaiting)

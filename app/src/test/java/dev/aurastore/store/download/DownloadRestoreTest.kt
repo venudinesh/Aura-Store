@@ -105,6 +105,20 @@ class DownloadRestoreTest {
     }
 
     @Test
+    fun `a saved archive is still ready after the cache is emptied`() {
+        // The kept copy lives in Downloads, not the cache, so a swept cache says nothing about it.
+        val stored = row(DownloadState.READY).copy(
+            fileName = "game data.zip",
+            localPath = File(dir, "gone.zip").absolutePath,
+            bytesDownloaded = 4_000L,
+            totalBytes = 4_000L,
+        )
+        val restored = DownloadEngine.reattach(stored, dir)
+        assertEquals(DownloadState.READY, restored.state)
+        assertNull(restored.localPath)
+    }
+
+    @Test
     fun `a paused row keeps its place in the file`() {
         write("3f2a1b90-0000-0000-0000-000000000001", 700)
         val restored = DownloadEngine.reattach(

@@ -21,6 +21,7 @@ import dev.aurastore.store.data.Hosts
 import dev.aurastore.store.data.SecureTransport
 import dev.aurastore.store.data.PostSummary
 import dev.aurastore.store.data.sources.percentDecode
+import dev.aurastore.store.install.ApkExport
 import dev.aurastore.store.install.ApkInspector
 import dev.aurastore.store.install.InstallSessions
 import dev.aurastore.store.install.Installer
@@ -168,6 +169,17 @@ data class DownloadItem(
      */
     val isBundle: Boolean
         get() = Xapk.isBundle(fileName)
+
+    /**
+     * Whether the artefact is an ordinary file rather than something Android can install.
+     *
+     * A `.zip`, `.rar`, `.iso` or an extensionless link is not a package and never reaches an
+     * installer: it is saved straight to `Downloads/Aura Store` when the transfer lands. Expansion
+     * files are excluded because they have their own destination, and bundles are excluded because
+     * they unpack into packages.
+     */
+    val archive: Boolean
+        get() = !dataFile && !isBundle && !ApkExport.isPackage(fileName)
 }
 
 /** What to do with the row a duplicate request collapsed onto. */
@@ -499,6 +511,13 @@ object DownloadEngine {
                 etaSeconds = null,
             )
         }
+        // An archive was copied into Downloads when it verified, so an emptied cache costs the row
+        // nothing: it still says where the kept copy is. The cache path is dropped rather than
+        // pretending a file is still there.
+        if (item.archive && item.state == DownloadState.READY) {
+            val kept = item.localPath?.let(::File)?.takeIf { it.isFile }
+            return if (kept == null) item.copy(localPath = null) else item
+        }
         val holdsFile = item.state == DownloadState.PAUSED || item.state == DownloadState.READY ||
             item.state == DownloadState.NEEDS_PERMISSION || item.state == DownloadState.INSTALLING ||
             item.state == DownloadState.AWAITING_CONFIRMATION
@@ -710,6 +729,8 @@ object DownloadEngine {
 
     fun install(context: Context, id: String) {
         val item = _items.value.firstOrNull { it.id == id } ?: return
+        // An archive has no installer to hand anything to; its file was saved when it verified.
+        if (item.archive) return
         val path = item.localPath ?: return
         if (item.dataFile) return
         // Android empties the cache under a running app, and a restored row may have lost its bytes: an
@@ -1428,10 +1449,16 @@ object DownloadEngine {
             pruneIfIdle(context)
             return
         }
+        if (item.archive) {
+            verifyArchive(context, id, target)
+            notifyAggregate(context)
+            pruneIfIdle(context)
+            return
+        }
         if (item.isBundle) verifyBundle(context, id, target, dir) else verifyPackage(context, id, target)
         notifyAggregate(context)
         val ready = _items.value.firstOrNull { it.id == id }
-        if (ready != null && ready.state == DownloadState.READY && ready.autoInstall) {
+        if (ready != null && ready.state == DownloadState.READY && ready.autoInstall && !ready.archive) {
             install(context, id)
         }
         pruneIfIdle(context)
@@ -1533,6 +1560,50 @@ object DownloadEngine {
             )
         }
         notifyAggregate(context)
+    }
+
+    /**
+     * An archive is not verified as a package: its bytes are the thing the user asked for, so the
+     * transfer landing is the whole check. It goes straight into `Downloads/Aura Store` and the row
+     * becomes ready-to-save, never ready-to-install.
+     *
+     * An older copy under the same name is deliberately kept. Overwriting somebody's archive because
+     * a new download happened to share its name is not this store's decision to make; the row says
+     * the copy is already there, and the 3-dots *Save file* action says the same if it is tapped.
+     */
+    private fun verifyArchive(context: Context, id: String, target: File) {
+        val item = _items.value.firstOrNull { it.id == id } ?: return
+        val name = ApkExport.savedName(item.fileName, item.title, item.versionLabel)
+        if (ApkExport.exists(context, name)) {
+            // The kept copy is the answer; the new bytes are a duplicate of a name that is already
+            // there, so they do not sit in the cache doubling a multi-gigabyte download.
+            runCatching { target.delete() }
+            update(id) {
+                it.copy(
+                    state = DownloadState.READY,
+                    error = null,
+                    failure = null,
+                    localPath = null,
+                    notice = "Downloads/Aura Store already has $name — the existing copy was kept.",
+                )
+            }
+            return
+        }
+        val where = ApkExport.save(context, target, name)
+        if (where == null) {
+            val failure = Failures.saveFailure()
+            update(id) {
+                it.copy(state = DownloadState.FAILED, error = failure.message, failure = failure)
+            }
+            return
+        }
+        // The kept copy is now the artifact. Leaving a second copy in the cache would double the
+        // disk cost of a multi-gigabyte ISO for no benefit, so the cache's bytes go. The status line
+        // already says where the file is; the notice is reserved for the cases that need a sentence.
+        runCatching { target.delete() }
+        update(id) {
+            it.copy(state = DownloadState.READY, error = null, failure = null, localPath = null, notice = null)
+        }
     }
 
     private fun targetFor(dir: File, id: String, item: DownloadItem): File =

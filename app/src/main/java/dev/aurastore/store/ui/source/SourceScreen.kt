@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -53,6 +54,7 @@ import dev.aurastore.store.ui.LocalNavBarInset
 import dev.aurastore.store.ui.GlyphIcon
 import dev.aurastore.store.ui.LoadingRail
 import dev.aurastore.store.ui.PlayChip
+import dev.aurastore.store.ui.ScrollRevealHost
 import dev.aurastore.store.ui.SectionHeader
 import dev.aurastore.store.ui.StateMessage
 import dev.aurastore.store.ui.playClickable
@@ -267,7 +269,10 @@ fun SourceScreen(
         if (!initialCategory.isNullOrBlank()) viewModel.openCategoryById(initialCategory)
     }
 
-    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp + LocalNavBarInset.current)) {
+    val listState = rememberLazyListState()
+
+    ScrollRevealHost(listState) {
+    LazyColumn(state = listState, modifier = modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp + LocalNavBarInset.current)) {
         item {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
@@ -473,6 +478,7 @@ fun SourceScreen(
                 }
             }
         }
+    }
     }
 }
 

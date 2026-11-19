@@ -118,6 +118,18 @@ object Failures {
     )
 
     /**
+     * A file that arrived whole but could not be copied into `Downloads/Aura Store`.
+     *
+     * The transfer is complete and hashed; what failed is the public-storage write. Retry is honest
+     * because the bytes are still in the cache and the copy can be attempted again.
+     */
+    fun saveFailure(): Failure = Failure(
+        kind = FailureKind.STORAGE,
+        message = "The file downloaded, but could not be saved to Downloads/Aura Store.",
+        hint = "Free space in Downloads, then retry. The bytes are still in the cache.",
+    )
+
+    /**
      * A row that still claims a file the device no longer has.
      *
      * The queue is persisted but the APKs live in `cache/apk`, which Android is free to empty — and on

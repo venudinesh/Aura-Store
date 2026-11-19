@@ -905,6 +905,8 @@ internal fun downloadRowStatus(item: DownloadItem): StatusLine = when (item.stat
     }
     DownloadState.READY -> when {
         item.dataFile -> StatusLine(R.string.row_ready_to_add)
+        // An archive has no installer waiting for it: the file is already in Downloads.
+        item.archive -> StatusLine(R.string.dl_state_saved)
         // The file is fine and the platform is the obstacle: saying "Ready to install" beside a build
         // that cannot go in would be a lie about the row.
         item.uninstallFirst -> StatusLine(R.string.row_needs_uninstall)
@@ -1037,23 +1039,33 @@ fun DownloadRow(
                     DownloadState.PAUSED, DownloadState.FAILED, DownloadState.CANCELED ->
                         SmallCircleAction(Glyph.Play, stringResource(R.string.a11y_resume), onToggle)
                     DownloadState.READY, DownloadState.NEEDS_PERMISSION, DownloadState.AWAITING_CONFIRMATION ->
-                        // Re-opening the sheet is the only thing that can still move an awaiting row, so the
-                        // control stays a working Install rather than a dead spinner. Except for the one row
-                        // that cannot be installed at all yet: its next step is a removal, and the button that
-                        // opens the system's own uninstall sheet is the honest control to put there.
-                        InstallButton(
-                            RowAction(
-                                if (item.state == DownloadState.NEEDS_PERMISSION) ActionKind.PERMISSION
-                                else ActionKind.INSTALL,
-                                label = when {
-                                    item.uninstallFirst -> stringResource(R.string.action_uninstall)
-                                    item.dataFile -> stringResource(R.string.action_add_data)
-                                    else -> null
-                                },
-                            ),
-                            onClick = if (item.uninstallFirst) onUninstallFirst else onInstall,
-                            compact = true,
-                        )
+                        if (item.archive) {
+                            // The copy in Downloads is the whole point of this row; saving again is
+                            // the only useful control, and it warns when the copy is already there.
+                            SmallCircleAction(
+                                Glyph.Download,
+                                stringResource(R.string.row_menu_save),
+                                onSave,
+                            )
+                        } else {
+                            // Re-opening the sheet is the only thing that can still move an awaiting row, so the
+                            // control stays a working Install rather than a dead spinner. Except for the one row
+                            // that cannot be installed at all yet: its next step is a removal, and the button that
+                            // opens the system's own uninstall sheet is the honest control to put there.
+                            InstallButton(
+                                RowAction(
+                                    if (item.state == DownloadState.NEEDS_PERMISSION) ActionKind.PERMISSION
+                                    else ActionKind.INSTALL,
+                                    label = when {
+                                        item.uninstallFirst -> stringResource(R.string.action_uninstall)
+                                        item.dataFile -> stringResource(R.string.action_add_data)
+                                        else -> null
+                                    },
+                                ),
+                                onClick = if (item.uninstallFirst) onUninstallFirst else onInstall,
+                                compact = true,
+                            )
+                        }
                     DownloadState.INSTALLED ->
                         // A placed data row stays actionable: re-adding it is how a game whose data went
                         // missing gets fixed without re-downloading a gigabyte.

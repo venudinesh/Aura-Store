@@ -42,6 +42,7 @@ import dev.aurastore.store.ui.GlyphIcon
 import dev.aurastore.store.ui.LoadingRail
 import dev.aurastore.store.ui.LocalNavBarInset
 import dev.aurastore.store.ui.PagingFooter
+import dev.aurastore.store.ui.ScrollRevealHost
 import dev.aurastore.store.ui.StateMessage
 import dev.aurastore.store.ui.StatusLine
 import dev.aurastore.store.ui.playClickable
@@ -182,6 +183,7 @@ fun ListingScreen(
 
     LaunchedEffect(Unit) { viewModel.start() }
 
+    ScrollRevealHost(listState) {
     LazyColumn(
         state = listState,
         modifier = modifier.fillMaxSize(),
@@ -249,6 +251,7 @@ fun ListingScreen(
                 )
             }
         }
+    }
     }
 
     // The next page is asked for while there is still screen left to read, so it arrives before the
