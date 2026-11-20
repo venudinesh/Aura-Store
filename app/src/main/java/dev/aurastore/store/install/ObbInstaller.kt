@@ -111,6 +111,17 @@ object ObbInstaller {
     }
 
     /**
+     * True when [source] opens as a zip at all.
+     *
+     * A data artefact is two different things wearing the same extension: a zip of expansion files,
+     * which [expansionsIn] reads, and a port's own game data, which is a zip with no `.obb` inside.
+     * The first belongs to the OBB placement step; the second is the file the user asked for and is
+     * saved as an archive, not failed for the expansion it never promised.
+     */
+    fun isZipArchive(source: File): Boolean =
+        runCatching { ZipFile(source).use { true } }.getOrDefault(false)
+
+    /**
      * Pulls the expansion files out of the archive the catalogue shipped.
      *
      * A `.obb` downloaded bare is used where it lies — copying a gigabyte out of the way first would

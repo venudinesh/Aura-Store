@@ -3,6 +3,18 @@
 All notable changes to Aura Store. The format follows [Keep a Changelog](https://keepachangelog.com/),
 and the project uses `MAJOR.MINOR.PATCH` versions.
 
+## [1.8.2] - 2026-11-20
+
+### Fixed
+
+- **A port's data zip is saved, not failed as a missing OBB.** APKVision files some ports' game data
+  under an *OBB* heading, but the zip can hold the game's own package and no `.obb` at all: God of
+  War Collection ships `gowHD_PSV.pkg` and `work.bin`. The row now reads a completed zip, finds no
+  expansion, and sends it through the archive save path, so a finished multi-gigabyte download lands
+  in `Downloads/Aura Store` instead of failing a check it never promised to pass. The data marker is
+  cleared with it, and a retry of the failed row verifies from the bytes already in the cache. A file
+  that will not open as a zip still fails with the reason.
+
 ## [1.8.1] - 2026-11-19
 
 ### Fixed

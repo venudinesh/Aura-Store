@@ -183,8 +183,29 @@ class ObbTest {
                 out.closeEntry()
             }
             assertTrue(ObbInstaller.expansionsIn(zip).isEmpty())
+            // Emptiness is not breakage: the archive opens, it simply carries no expansion. A port's
+            // own data zip looks exactly like this and is saved, not failed.
+            assertTrue(ObbInstaller.isZipArchive(zip))
         } finally {
             zip.delete()
+            dir.delete()
+        }
+    }
+
+    @Test
+    fun `bytes that are not a zip are not called an archive`() {
+        val dir = java.nio.file.Files.createTempDirectory("obb").toFile()
+        val plain = File(dir, "data.bin")
+        val bare = File(dir, "main.42.com.game.pkg.obb")
+        try {
+            plain.writeBytes(byteArrayOf(1, 2, 3, 4))
+            bare.writeBytes(byteArrayOf(5, 6, 7, 8))
+            assertFalse(ObbInstaller.isZipArchive(plain))
+            // An .obb is opaque game data, not a container; it is named by its own file name.
+            assertFalse(ObbInstaller.isZipArchive(bare))
+        } finally {
+            plain.delete()
+            bare.delete()
             dir.delete()
         }
     }

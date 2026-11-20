@@ -1556,9 +1556,23 @@ object DownloadEngine {
      * A game's data file is verified by what is inside it, not by parsing it as a package: an `.obb`
      * is opaque data and a `.zip` is a container. The name of the expansion file says which app it
      * belongs to, which is what the placement step and the row both need.
+     *
+     * A zip that holds no expansion file is not a failed OBB. Several ports publish their own game
+     * data under the site's *OBB* heading, and the archive is the artefact the user asked for; it
+     * goes to the archive save path with [dataFile] cleared.
      */
     private fun verifyDataFile(context: Context, id: String, target: File) {
         val names = ObbInstaller.expansionsIn(target)
+        if (names.isEmpty() && ObbInstaller.isZipArchive(target)) {
+            // A port's data zip is not an OBB container: God of War's "OBB" download, for one, is a
+            // zip holding its own game data. Failing it for the expansion it never promised threw
+            // away a finished 3 GB download. It is the file the row names, so it takes the archive
+            // save path instead.
+            update(id) { it.copy(dataFile = false, apkPackage = null, error = null, failure = null) }
+            verifyArchive(context, id, target)
+            notifyAggregate(context)
+            return
+        }
         val packageName = names.firstNotNullOfOrNull { Obb.packageOf(it) }
         val failure = if (names.isEmpty()) Failures.packageFailure("This archive does not hold an expansion file.") else null
         update(id) {
