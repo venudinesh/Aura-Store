@@ -381,6 +381,8 @@ fun SearchScreen(
     onOpenSource: (SourceId, String) -> Unit,
     /** Opens one source app's own page: description, screenshots and files. */
     onOpenSourceApp: (SourceApp) -> Unit,
+    /** Bumped by a double tap on the Search tab: the field takes focus and the keys come up. */
+    focusRequest: Int = 0,
     modifier: Modifier = Modifier,
     viewModel: SearchViewModel = viewModel(),
 ) {
@@ -412,6 +414,15 @@ fun SearchScreen(
     // the keys off for someone who came to read the last results; the field still focuses on a tap.
     androidx.compose.runtime.LaunchedEffect(searchKeyboard) {
         if (!searchKeyboard) return@LaunchedEffect
+        runCatching { focusRequester.requestFocus() }
+        keyboard?.show()
+    }
+
+    // The tab was already on screen when it was tapped twice. The setting above is the page's own
+    // choice on arrival; this is the reader asking for the keys at that moment, so it wins for the
+    // same tick and every later double tap.
+    androidx.compose.runtime.LaunchedEffect(focusRequest) {
+        if (focusRequest <= 0) return@LaunchedEffect
         runCatching { focusRequester.requestFocus() }
         keyboard?.show()
     }

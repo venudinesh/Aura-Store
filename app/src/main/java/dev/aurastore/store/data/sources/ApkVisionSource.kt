@@ -287,30 +287,60 @@ object ApkVisionSource : Source {
                     .toList()
             }
 
+    /**
+     * The file buttons a download page draws.
+     *
+     * A page publishes one button per artefact and puts the same file on more than one storage host.
+     * The extension is not the filter: the site serves `.apk`, `.apks`, `.xapk`, `.zip`, `.rar`,
+     * `.7z`, `.iso` and `.exe` from the same host, and a page that offered only an `.apks` used to
+     * come back with no files at all. A button is a file when the page marks it as one, or when it
+     * points at the site's own storage host.
+     */
     fun parseDirectFiles(html: String, base: String): List<SourceFile> {
-        val anchors = Regex("""<a\s+[^>]*href="([^"]+)"[^>]*>(.*?)</a>""", RegexOption.DOT_MATCHES_ALL)
+        val anchors = Regex("""<a\s+([^>]*?)href="([^"]+)"([^>]*)>(.*?)</a>""", RegexOption.DOT_MATCHES_ALL)
         return anchors.findAll(html).mapNotNull { m ->
-            val href = m.groupValues[1]
-            val rawText = m.groupValues[2]
+            val attrs = m.groupValues[1] + m.groupValues[3]
+            val href = m.groupValues[2]
             if (href.startsWith("#") || href.contains("sai-split") || href.contains("apkvision-store")) {
                 return@mapNotNull null
             }
-            val isDirect = href.contains("dl.apkvision.org") ||
-                Regex("""\.(apk|xapk|zip)$""", RegexOption.IGNORE_CASE).containsMatchIn(href)
-            if (!isDirect) return@mapNotNull null
+            val name = percentDecode(href.substringBefore('?').substringAfterLast('/'))
+            val extension = name.substringAfterLast('.', "").lowercase()
+            val onStorage = Regex("""^https?://dl\d*\.apkvision\.(?:org|net)/""").containsMatchIn(href)
+            val button = attrs.contains("fdl-btn") && extension in FILE_EXTENSIONS
+            if (!onStorage && !button) return@mapNotNull null
 
-            val cleanText = Web.text(rawText)
+            val cleanText = Web.text(m.groupValues[4])
             val sizeMatch = Regex("""(\d+(?:\.\d+)?\s*(?:GB|MB|KB))""", RegexOption.IGNORE_CASE).find(cleanText)?.groupValues?.get(1)
-            val noteMatch = Regex("""(MOD:[^·]+|Original|Full)""", RegexOption.IGNORE_CASE).find(cleanText)?.groupValues?.get(1)?.trim()
-            val label = cleanText.ifBlank { href.substringAfterLast('/') }
+            // The button says which mirror is behind it; two rows that differ only by URL otherwise
+            // look like the same file listed twice.
+            val server = Regex("""APKVision\s+Server\s*\d+""", RegexOption.IGNORE_CASE).find(cleanText)?.value
+                ?: storageLabel(href)
+            val edition = Regex("""(MOD:[^·]+|Original|Full)""", RegexOption.IGNORE_CASE).find(cleanText)?.groupValues?.get(1)?.trim()
+            // The file's own name is the label a person can match against what landed in Downloads;
+            // the button's prose runs the host, the size and the type together.
+            val label = name.takeIf { it.contains('.') } ?: cleanText.ifBlank { href.substringAfterLast('/') }
 
             SourceFile(
                 label = label,
                 url = Web.absolute(base, href),
                 size = sizeMatch,
-                note = noteMatch,
+                note = listOfNotNull(edition, server).distinct().joinToString(" · ").ifBlank { null },
             )
         }.distinctBy { it.url }.toList()
+    }
+
+    /** Packages and archives the site publishes; `.exe` is a port's PC data, not a mistake. */
+    private val FILE_EXTENSIONS = setOf(
+        "apk", "apks", "xapk", "zip", "rar", "7z", "iso", "obb", "exe", "tar", "gz", "bin",
+    )
+
+    /** Which storage host a link names, when the page's own button text did not say. */
+    private fun storageLabel(href: String): String? = when {
+        href.contains("dl2.apkvision.net") -> "APKVision Server 2"
+        href.contains("dl.apkvision.net") -> "APKVision Server 1"
+        href.contains("dl.apkvision.org") -> "APKVision"
+        else -> null
     }
 }
 

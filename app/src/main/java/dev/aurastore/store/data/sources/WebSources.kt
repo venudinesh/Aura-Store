@@ -274,7 +274,7 @@ object NineModSource : Source {
                     ?.replace("&amp;", "&")
                     ?.ifBlank { null }
                     ?: return@mapNotNull null
-                if (!Regex("\\.(apk|xapk|zip|obb)(\\?|$)", RegexOption.IGNORE_CASE).containsMatchIn(href)) {
+                if (!Regex("\\.(apk|apks|xapk|zip|rar|7z|iso|obb)(\\?|$)", RegexOption.IGNORE_CASE).containsMatchIn(href)) {
                     return@mapNotNull null
                 }
                 val block = match.groupValues[2]
@@ -567,7 +567,11 @@ object FivePlaySource : Source {
             runCatching {
                 val cdn = Web.get(url, referer = pageUrl)
                 val direct = parseCdnLink(cdn) ?: return@runCatching null
-                SourceFile(label = label, url = direct)
+                SourceFile(
+                    label = fileNameFromUrl(direct) ?: Web.text(label),
+                    url = direct,
+                    size = sizeInText(label),
+                )
             }.getOrNull()
         }
     }
@@ -870,7 +874,11 @@ object GetModsApkSource : Source {
             runCatching {
                 val mirror = Web.get(mirrorUrl, referer = downloadPage)
                 val direct = parseDirectFile(mirror) ?: return@runCatching null
-                SourceFile(label = label.ifBlank { "Mirror" }, url = direct)
+                SourceFile(
+                    label = fileNameFromUrl(direct) ?: label.ifBlank { "Mirror" },
+                    url = direct,
+                    size = sizeInText(label),
+                )
             }.getOrNull()
         }
     }
@@ -1068,8 +1076,12 @@ object An1Source : Source {
             ?.let { Web.absolute(pageUrl, it) }
             ?: return emptyList()
         val filePage = Web.get(downloadPage, referer = pageUrl)
-        return parseDirectFiles(filePage, downloadPage).map { url ->
-            SourceFile(label = url.substringAfterLast('/'), url = url)
+        return parseDirectFileEntries(filePage, downloadPage).map { (url, size) ->
+            SourceFile(
+                label = fileNameFromUrl(url) ?: url.substringAfterLast('/'),
+                url = url,
+                size = size,
+            )
         }
     }
 
@@ -1099,10 +1111,29 @@ object An1Source : Source {
 
     /** Pure: direct files on the `/file_<id>-dw.html` page. */
     fun parseDirectFiles(html: String, base: String): List<String> =
-        Regex("href=\"([^\"]+\\.[a-z0-9]{2,4})\"")
+        parseDirectFileEntries(html, base).map { it.first }
+
+    /**
+     * Pure: the file page's links with the size each button prints beside them.
+     *
+     * The button is an anchor around `Download (1765.4Mb)`; the URL is the file's own link on the
+     * storage host. Reading both from the same anchor is what lets the page say how large a zip is
+     * before anyone starts it.
+     */
+    fun parseDirectFileEntries(html: String, base: String): List<Pair<String, String?>> =
+        Regex("""<a\s+[^>]*href="([^"]+\.[a-z0-9]{2,4})"[^>]*>(.*?)</a>""", RegexOption.DOT_MATCHES_ALL)
             .findAll(html)
-            .map { Web.absolute(base, it.groupValues[1]) }
-            .filter { it.contains("files.an1.") && Regex("\\.(apk|zip|apks|xapk)$", RegexOption.IGNORE_CASE).containsMatchIn(it) }
-            .distinct()
+            .mapNotNull { m ->
+                val url = Web.absolute(base, m.groupValues[1])
+                if (!url.contains("files.an1.")) return@mapNotNull null
+                // The page's own header links AN1 Store's installer from the same host family; it is
+                // not this game's file, and taking it would put a second, smaller APK in the list.
+                if (url.contains("an1store", ignoreCase = true)) return@mapNotNull null
+                if (!Regex("\\.(apk|zip|apks|xapk)$", RegexOption.IGNORE_CASE).containsMatchIn(url)) {
+                    return@mapNotNull null
+                }
+                url to sizeInText(Web.text(m.groupValues[2]))
+            }
+            .distinctBy { it.first }
             .toList()
 }

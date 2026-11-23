@@ -18,8 +18,10 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -36,6 +38,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -68,6 +71,7 @@ import dev.aurastore.store.data.PostSummary
 import dev.aurastore.store.download.DownloadItem
 import dev.aurastore.store.download.DownloadState
 import dev.aurastore.store.theme.ArtShape
+import dev.aurastore.store.theme.PillShape
 import dev.aurastore.store.theme.SplitActionShape
 import dev.aurastore.store.theme.SplitChooserShape
 import dev.aurastore.store.theme.EmphasizedAccelerateEasing
@@ -315,6 +319,74 @@ fun InstallButton(
                         label = stringResource(R.string.chooser_build_title),
                     )
                 }
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------------------------- live transfer
+
+/**
+ * A live transfer where a page has to show one: the bar, the bytes that have landed and the rate.
+ *
+ * The line mirrors the notification's, so every surface that reports progress says the same thing
+ * about the same row. A host that withholds the length gets the indeterminate bar and the bytes moved,
+ * never a permanent 0 % over an invented total. [showFileName] names the artefact when the row is not
+ * the page's package — a game's data file downloads beside it, and the page has to say which file.
+ */
+@Composable
+fun TransferProgress(
+    item: DownloadItem,
+    modifier: Modifier = Modifier,
+    showFileName: Boolean = false,
+) {
+    val sized = item.totalBytes > 0
+    val bytes = if (sized) {
+        "${humanSize(item.bytesDownloaded)} / ${humanSize(item.totalBytes)}"
+    } else {
+        stringResource(R.string.detail_transfer_unknown, humanSize(item.bytesDownloaded))
+    }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (showFileName && item.fileName.isNotBlank()) {
+            Text(
+                item.fileName,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (sized) {
+            LinearProgressIndicator(
+                progress = { item.progress },
+                modifier = Modifier.fillMaxWidth().height(6.dp).clip(PillShape),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            )
+        } else {
+            LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth().height(6.dp).clip(PillShape),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (sized) {
+                    "${stringResource(R.string.percent_int, (item.progress * 100).toInt())} · $bytes"
+                } else {
+                    bytes
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            if (item.isActive && item.bytesPerSecond > 0) {
+                Text(
+                    stringResource(R.string.detail_transfer_speed, humanSize(item.bytesPerSecond)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -629,6 +701,95 @@ fun SectionHeader(
                         label = stringResource(R.string.a11y_see_more),
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * The store page's card: a hairline-edged sheet on the page colour, with the corner the rest of the
+ * store uses for a large surface. One definition, so every section sits at the same weight.
+ */
+@Composable
+fun StoreCard(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+    }
+}
+
+/** One figure in the facts strip: value, its glyph, and what the number counts. */
+@Composable
+fun RowScope.Metric(glyph: Glyph, value: String, label: String) {
+    Column(
+        Modifier.weight(1f).padding(horizontal = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                value,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.width(4.dp))
+            GlyphIcon(
+                glyph,
+                size = 15.dp,
+                tint = if (glyph == Glyph.Star) dev.aurastore.store.theme.RatingStar
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.height(2.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** The seam between two figures. */
+@Composable
+fun Hairline() {
+    Box(
+        Modifier
+            .width(1.dp)
+            .height(32.dp)
+            .background(MaterialTheme.colorScheme.outlineVariant),
+    )
+}
+
+/** Label on the left, value on the right, a hairline between each pair. */
+@Composable
+fun FactTable(rows: List<Pair<String, String>>) {
+    Column {
+        rows.forEachIndexed { index, row ->
+            if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    row.first,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(112.dp),
+                )
+                Text(
+                    row.second,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
     }

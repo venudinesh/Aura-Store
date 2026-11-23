@@ -28,7 +28,7 @@ android {
         // compares. The code is derived here so a release cannot publish a name and a code that
         // disagree — major × 10 000 + minor × 100 + patch, so 1.4.0 is 10 400. The bounds are the
         // ones the scheme can hold, and they are also the ones AppVersion parses.
-        val appVersionName = "1.8.2"
+        val appVersionName = "1.8.3"
         versionName = appVersionName
         versionCode = appVersionName.split('.').let { parts ->
             require(parts.size == 3) { "versionName must be major.minor.patch, was $appVersionName" }

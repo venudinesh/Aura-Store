@@ -51,6 +51,7 @@ object QueueStore {
     private fun encode(item: DownloadItem) = JSONObject().apply {
         put("id", item.id)
         put("postId", item.postId)
+        putLng("originPostId", item.originPostId)
         put("title", item.title)
         putStr("iconUrl", item.iconUrl)
         put("versionLabel", item.versionLabel)
@@ -99,6 +100,7 @@ object QueueStore {
         return DownloadItem(
             id = obj.getString("id"),
             postId = obj.optLong("postId"),
+            originPostId = obj.lng("originPostId"),
             title = obj.optString("title"),
             iconUrl = obj.str("iconUrl"),
             versionLabel = obj.optString("versionLabel"),

@@ -3,6 +3,7 @@ package dev.aurastore.store.data.sources
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -186,6 +187,30 @@ class WebSourcesTest {
 
         val files = An1Source.parseDirectFiles(fixture("an1_file.html"), "https://an1.com/file_7586-dw.html")
         assertTrue(files.any { it.startsWith("https://files.an1.co/") && it.endsWith(".apk") })
+
+        // The size sits in the button beside the link, and it is the only place the file page prints it.
+        val entries = An1Source.parseDirectFileEntries(fixture("an1_file.html"), "https://an1.com/file_7586-dw.html")
+        assertEquals(files, entries.map { it.first })
+        assertEquals("1765.4Mb", entries.first { it.first.endsWith(".apk") }.second)
+    }
+
+    /**
+     * Every other source prints the size in the button's own prose, in its own spelling: 5play says
+     * `Download apk (78.28 Mb)`, GetModsAPK `Download (168 MB)`, AN1 `Download (1765.4Mb)`. A row that
+     * drops it leaves the file card with a name and no size, which is the one fact a person needs
+     * before starting a multi-gigabyte zip.
+     */
+    @Test
+    fun `a file button's size is read from its prose`() {
+        assertEquals("78.28 Mb", sizeInText("Download apk (78.28 Mb)"))
+        assertEquals("168 MB", sizeInText("Download (168 MB)"))
+        assertEquals("1765.4Mb", sizeInText("Download (1765.4Mb)"))
+        assertEquals("1.3 GB", sizeInText("Server 2 · 1.3 GB · RAR"))
+        assertNull(sizeInText("Download"))
+        assertNull(sizeInText("APKVision Server 1"))
+
+        assertEquals("wobbly-life-mod_1.1.0.15-an1.com.apk", fileNameFromUrl("https://files.an1.co/wobbly-life-mod_1.1.0.15-an1.com.apk"))
+        assertNull(fileNameFromUrl("https://5play.org/en/?do=cdn&id=170715"))
     }
 
     // ------------------------------------------------------------- ApkVision
@@ -217,6 +242,42 @@ class WebSourcesTest {
         assertTrue(files[0].url.contains("dl.apkvision.org"))
         assertTrue(files[0].url.endsWith(".xapk"))
         assertEquals("181.57 MB", files[0].size)
+        assertEquals("subway-horror-chapter-1-3-v1.8-apkvision.xapk", files[0].label)
+    }
+
+    /**
+     * The ports put their game data on the second storage host as `.rar`, `.7z` or `.iso`, and the
+     * newest split bundles as `.apks`. None of those used to pass the extension filter, so a page
+     * whose only package was an `.apks`, or whose data was a `.rar`, listed fewer files than the
+     * page itself drew.
+     */
+    @Test
+    fun `apkvision reads every file its buttons publish, not only apk and zip`() {
+        val page = """
+            <a class="fdl-btn" href="https://dl.apkvision.org/sifu/Sifu-v1.0.apks">Download APKS 1.2 GB</a>
+            <a class="fdl-btn" href="https://dl.apkvision.net/darkwatch/Darkwatch-apkvision.rar">Download RAR · APKVision Server 1 1.3 GB · RAR</a>
+            <a class="fdl-btn" href="https://dl2.apkvision.net/darkwatch/Darkwatch-apkvision.rar">Download RAR · APKVision Server 2 1.3 GB · RAR</a>
+            <a class="fdl-btn" href="https://dl.apkvision.net/forza/Forza-apkvision.7z">Download 7Z 2.4 GB</a>
+            <a class="fdl-btn" href="https://dl.apkvision.net/metroid/Metroid-Prime.iso">Download ISO 700 MB</a>
+            <a class="fdl-btn" href="https://dl.apkvision.net/deus-ex/deus_ex_goty.exe">Download EXE 1.1 GB</a>
+            <a href="https://apkvision.org/games/action/sifu-134807/">Sifu</a>
+            <a href="https://apkvision.org/how-to-install-apks/">How to install</a>
+        """.trimIndent()
+        val files = ApkVisionSource.parseDirectFiles(page, "https://apkvision.org/games/action/darkwatch-135941/download/v1.0-obb/")
+
+        assertEquals(6, files.size)
+        assertEquals(
+            listOf("Sifu-v1.0.apks", "Darkwatch-apkvision.rar", "Forza-apkvision.7z", "Metroid-Prime.iso", "deus_ex_goty.exe"),
+            files.map { it.label }.distinct(),
+        )
+        // Two mirrors are two rows; the page said which host each one is.
+        assertEquals(2, files.count { it.label == "Darkwatch-apkvision.rar" })
+        assertTrue(files.any { it.note == "APKVision Server 1" })
+        assertTrue(files.any { it.note == "APKVision Server 2" })
+        assertEquals("1.3 GB", files.first { it.label == "Darkwatch-apkvision.rar" }.size)
+        assertEquals("2.4 GB", files.first { it.label == "Forza-apkvision.7z" }.size)
+        // The site's own pages are not files, even when an older check would have taken a path for one.
+        assertTrue(files.none { it.url.contains("sifu-134807") || it.url.contains("how-to-install") })
     }
 
     // ------------------------------------------------------- app pages
@@ -280,7 +341,7 @@ class WebSourcesTest {
 
     @Test
     fun `every source has a distinct id and the catalogue is first`() {
-        assertEquals(6, Sources.all.size)
+        assertEquals(7, Sources.all.size)
         assertEquals(SourceId.LITEAPKS, Sources.all.first().id)
         assertEquals(Sources.all.size, Sources.all.map { it.id }.distinct().size)
     }

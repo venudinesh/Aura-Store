@@ -355,7 +355,7 @@ fun SourcePickerSheet(onDismiss: () -> Unit) {
                             SourceFileCard(
                                 file = file,
                                 onDownload = {
-                                    enqueueSourceFile(context, selectedApp, file)
+                                    enqueueSourceFile(context, selectedApp, file, request?.cataloguePostId)
                                     Toast.makeText(context, queued, Toast.LENGTH_SHORT).show()
                                     onDismiss()
                                 },
@@ -589,7 +589,12 @@ private fun FileSkeletons() {
  * the source's own key: the queue keeps one row per (post, url), and the key is what tells two
  * downloads of the same site apart.
  */
-internal fun enqueueSourceFile(context: Context, app: SourceApp, file: SourceFile) {
+internal fun enqueueSourceFile(
+    context: Context,
+    app: SourceApp,
+    file: SourceFile,
+    originPostId: Long? = null,
+) {
     // A catalogue file carries the post it belongs to, so the app's own page recognises the row while
     // it downloads and after it installs. A source-only answer has no post, and its stable pseudo-id
     // is built from the source's own key: the queue keeps one row per (post, url), and the key is
@@ -640,5 +645,7 @@ internal fun enqueueSourceFile(context: Context, app: SourceApp, file: SourceFil
         // A source that publishes a sha-256 per file has it compared before the row is READY rather
         // than left as a note next to the button.
         expectedSha256 = file.sha256,
+        originPostId = originPostId,
+        fileName = file.fileName,
     )
 }

@@ -57,4 +57,11 @@ class FileNameTest {
         assertEquals(80, name.length)
         assertTrue(name.endsWith(".apk"))
     }
+
+    @Test
+    fun `a name a source published is cleaned the same way`() {
+        assertEquals("Shrek2-uni-0.1.0-27.apk", DownloadEngine.cleanFileName("Shrek2-uni-0.1.0-27.apk"))
+        assertEquals("Game_data_rus_version.zip", DownloadEngine.cleanFileName("Game data rus version.zip"))
+        assertEquals("package.apk", DownloadEngine.cleanFileName(""))
+    }
 }

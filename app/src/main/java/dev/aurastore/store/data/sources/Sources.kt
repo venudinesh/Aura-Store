@@ -35,6 +35,7 @@ enum class SourceId(val label: String, val site: String, @StringRes val note: In
     GETMODSAPK("GetModsAPK", "https://getmodsapk.com/", R.string.source_note_getmodsapk),
     AN1("AN1", "https://an1.com/", R.string.source_note_an1),
     APKVISION("ApkVision", "https://apkvision.org/", R.string.source_note_apkvision),
+    APKPORTS("APKPorts", "https://apkports.com/", R.string.source_note_apkports),
 }
 
 /**
@@ -105,6 +106,14 @@ data class SourceFile(
     val note: String? = null,
     /** Published digest, when the source provides one. */
     val sha256: String? = null,
+    /**
+     * The file's own name when the URL does not end in one.
+     *
+     * Some sources address a file by an opaque id (`/dl/<game>/file/<uuid>`); the URL is the right
+     * request but the wrong name, and the queue would save an extensionless id. The page's own name
+     * is kept here so the download lands as the file the site meant.
+     */
+    val fileName: String? = null,
 )
 
 /**
@@ -242,6 +251,7 @@ object Sources {
         GetModsApkSource,
         An1Source,
         ApkVisionSource,
+        ApkPortsSource,
     )
 
     fun byId(id: SourceId): Source = all.first { it.id == id }
@@ -296,6 +306,49 @@ internal object Web {
             if (!response.isSuccessful) throw IOException("HTTP ${response.code} on $url")
             return response.body.string()
         }
+    }
+
+    /** JSON POST, used by APKPorts to mint the token its download route expects. */
+    fun postJson(url: String, body: String, referer: String? = null): String {
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", UA)
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .apply { if (referer != null) header("Referer", referer) }
+            .post(body.toRequestBody("application/json".toMediaType()))
+            .build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw IOException("HTTP ${response.code} on $url")
+            return response.body.string()
+        }
+    }
+
+    /**
+     * The address a link redirects to, without following it.
+     *
+     * APKPorts publishes `/dl/…` links that hand the bytes to a storage host. Which host that is
+     * decides whether the file can be fetched at all, and following the redirect would download
+     * the whole thing just to find out. A range request keeps the probe to a redirect's headers.
+     * Returns null when the response is not a redirect.
+     */
+    fun redirect(url: String, referer: String? = null): String? {
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", UA)
+            .header("Accept", "*/*")
+            .header("Range", "bytes=0-0")
+            .apply { if (referer != null) header("Referer", referer) }
+            .build()
+        noRedirect.newCall(request).execute().use { response ->
+            if (!response.isRedirect) return null
+            return response.header("Location")?.let { absolute(url, it) }
+        }
+    }
+
+    /** The same client, but a redirect is the answer rather than a step to take. */
+    private val noRedirect: OkHttpClient by lazy {
+        client.newBuilder().followRedirects(false).build()
     }
 
     fun encode(value: String): String = URLEncoder.encode(value, "UTF-8")
@@ -410,6 +463,24 @@ internal fun percentDecode(value: String): String =
     Regex("%([0-9A-Fa-f]{2})").replace(value) { m ->
         runCatching { m.groupValues[1].toInt(16).toChar().toString() }.getOrDefault(m.value)
     }
+
+/**
+ * The size a file button prints in its own words: `Download apk (78.28 Mb)`, `Download (168 MB)`,
+ * `Download (1765.4Mb)`. A button that prints no size answers null, and the page draws no size.
+ */
+internal fun sizeInText(text: String): String? {
+    val inside = Regex("""\((\d+(?:[.,]\d+)?\s*[KMGTP]i?B)\)""", RegexOption.IGNORE_CASE)
+        .find(text)?.groupValues?.get(1)
+    val bare = Regex("""\b(\d+(?:[.,]\d+)?\s*[KMGTP]i?B)\b""", RegexOption.IGNORE_CASE)
+        .find(text)?.groupValues?.get(1)
+    return (inside ?: bare)?.trim()?.replace(',', '.')?.takeIf { it.isNotBlank() }
+}
+
+/** The file's own name from its URL, decoded, or null when the URL ends in a path and no name. */
+internal fun fileNameFromUrl(url: String): String? =
+    url.substringBefore('?').substringAfterLast('/')
+        .takeIf { it.isNotBlank() && it.contains('.') }
+        ?.let(::percentDecode)
 
 /** "8255-spotify-music-mod-apk" -> "Spotify Music" — the fallback when a card has no clean label. */
 internal fun titleFromSlug(slug: String): String = slug

@@ -68,6 +68,14 @@ data class StateChange(val state: DownloadState, val at: Long)
 data class DownloadItem(
     val id: String,
     val postId: Long,
+    /**
+     * The catalogue page that asked for this row when the bytes come from one of its *other* sources.
+     *
+     * A mirror's file belongs to the mirror's listing, so [postId] is that listing's id; the page the
+     * user pressed Install on is still the page that asked, and it is the one that must show the
+     * transfer. Null for a row fetched by its own listing or by a source page.
+     */
+    val originPostId: Long? = null,
     val title: String,
     val iconUrl: String?,
     val versionLabel: String,
@@ -576,16 +584,25 @@ object DownloadEngine {
         postId: Long,
         autoInstall: Boolean = false,
         expectedSha256: String? = null,
+        originPostId: Long? = null,
+        /**
+         * The file's own name when the URL does not end in one.
+         *
+         * Some sources address a file by an opaque id (`/dl/<game>/file/<uuid>`); the link is the
+         * right request but the wrong name. The page's own name wins over the URL's last segment.
+         */
+        fileName: String? = null,
     ): String {
         // One row per (post, url): asking for bytes the queue already holds re-fetched the whole file
         // over a verified copy sitting in our own cache. The existing row is the one to act on.
         _items.value.firstOrNull { it.postId == postId && it.url == file.url }
             ?.let { return reuse(context, it, autoInstall) }
         val id = UUID.randomUUID().toString()
-        val name = fileNameFor(file.url)
+        val name = fileName?.takeIf { it.isNotBlank() }?.let(::cleanFileName) ?: fileNameFor(file.url)
         val item = DownloadItem(
             id = id,
             postId = postId,
+            originPostId = originPostId,
             title = post?.title ?: "App #$postId",
             iconUrl = post?.imageUrl,
             versionLabel = versionLabel.ifBlank { post?.latestVersion.orEmpty() },
@@ -1730,8 +1747,11 @@ object DownloadEngine {
      * `ENAMETOOLONG` (a 5play download failed exactly that way). Drop the query and fragment, keep
      * a readable ASCII name, and cap its length while keeping the extension.
      */
-    internal fun fileNameFor(url: String): String {
-        val segment = percentDecode(url.substringBefore('#').substringBefore('?').substringAfterLast('/'))
+    internal fun fileNameFor(url: String): String =
+        cleanFileName(percentDecode(url.substringBefore('#').substringBefore('?').substringAfterLast('/')))
+
+    /** The same cleaning for a name a source published, so both paths write a legal, short name. */
+    internal fun cleanFileName(segment: String): String {
         val cleaned = segment
             // Parentheses and the other marks APK names use are legal on every Android filesystem,
             // so only the characters that would confuse a path or a shell are replaced.

@@ -6,7 +6,7 @@
   **A phone shop for Android. It shows you what it checked before it hands you an app.**
 
   <p>
-    <a href="#get-the-app"><img alt="Aura Store 1.8.2" src="https://img.shields.io/badge/download-Aura%20Store%201.8.2-f6feb4?style=for-the-badge"></a>
+    <a href="#get-the-app"><img alt="Aura Store 1.8.3" src="https://img.shields.io/badge/download-Aura%20Store%201.8.3-f6feb4?style=for-the-badge"></a>
     <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.4-7f52ff?style=for-the-badge">
     <img alt="Android" src="https://img.shields.io/badge/Android-8.1%2B-3ddc84?style=for-the-badge">
     <img alt="Licence" src="https://img.shields.io/badge/licence-MIT-22a559?style=for-the-badge">
@@ -62,7 +62,7 @@ keeps working. It just cannot place that folder for you.
   store installed can update themselves. A notification names each app that has one, with the app's
   own icon and its version pair. Apps from elsewhere are matched back by their package name and wait
   for your tap.
-- **Update the store itself.** Settings shows the build as `1.8.2 (10802)` and has *Check now*. When
+- **Update the store itself.** Settings shows the build as `1.8.3 (10803)` and has *Check now*. When
   GitHub has a newer release, a banner under the brand bar names it and offers it without waiting for
   the next launch. The download shows its own bar, its percentage and its byte count, then checks the
   file against the published SHA-256 and hands it to Android's installer.
@@ -84,9 +84,11 @@ shows you what they return, and each of them keeps the ownership of its content 
 | GetModsAPK | Laravel catalogue with mirror pages |
 | AN1 | Modded games with direct file links |
 | ApkVision | WordPress with its own AJAX search |
+| APKPorts | Console and PC ports with storage-host links |
 
 Each one is read in its own way: LiteAPKs through its JSON API, 9MOD and ApkVision through
-WordPress, 5play and AN1 through DLE, and GetModsAPK through Laravel.
+WordPress, 5play and AN1 through DLE, GetModsAPK through Laravel, and APKPorts through its Remix
+pages and install-intent redirects.
 
 ## What "verified" means here
 
@@ -113,11 +115,11 @@ None of this makes a downloaded APK safe to run.
 ## Get the app
 
 [Releases](https://github.com/venudinesh/Aura-Store/releases) have their own page. Download
-`Aura-Store-v1.8.2.apk`, open it, and let Android install it.
+`Aura-Store-v1.8.3.apk`, open it, and let Android install it.
 
-1.8.2 carries the project key that 1.6.0 introduced. A 1.5.0 copy downloaded from this page is signed
+1.8.3 carries the project key that 1.6.0 introduced. A 1.5.0 copy downloaded from this page is signed
 with the lost key, so Android refuses to install either over it. Uninstall 1.5.0 once, then install
-1.8.2.
+1.8.3.
 
 1. Open the downloaded file. Android asks whether your browser or file manager may install unknown
    apps. Allow it for that app, then tap Install.
@@ -161,8 +163,8 @@ AuraStoreKeyPassword=...
 Without those four values the build still succeeds and writes `app-release-unsigned.apk`, because the
 file name is the clearest warning available.
 
-R8 and resource shrinking are on, which takes the release APK to roughly 2.4 MB from the debug
-build's 15 MB.
+R8 and resource shrinking are on. The bundled theme art sets the release APK at about 81 MB and the
+debug build at about 95 MB.
 
 One more gate stands between the tree and the repository:
 
@@ -176,7 +178,7 @@ before anything is built.
 
 ## Tests
 
-424 JVM tests across 56 classes cover the parsers, both pagers, queue persistence, the transfer core,
+481 JVM tests across 62 classes cover the parsers, both pagers, queue persistence, the transfer core,
 failure mapping, package identity, archive extraction, the shelf parsers of every source, the update
 rules, the version numbering, the profile data and the glass presets.
 

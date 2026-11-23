@@ -3,6 +3,57 @@
 All notable changes to Aura Store. The format follows [Keep a Changelog](https://keepachangelog.com/),
 and the project uses `MAJOR.MINOR.PATCH` versions.
 
+## [1.8.3] - 2026-11-20
+
+### Added
+
+- **Every source's app page has the catalogue page's shape.** A site's page opened from Browse now
+  opens on the site's art, with the app's mark over its lower edge, back and wishlist and share on
+  the image, and the facts the site published in one bordered card: files, size, version. The install
+  card carries the primary file and its live transfer, each file below has its own control and its own
+  progress, and the page closes with screenshots, the site's prose, and a facts table that names the
+  source and links back to the page. 9MOD, 5play, GetModsAPK, AN1 and APKVision all draw it; before,
+  only LiteAPKs' catalogue page had the design and every other source fell back to a plain list.
+
+- **APKPorts is a Browse source.** The console-and-PC-port catalogue has its own chip beside the
+  other six, with the rails its front page draws, its categories, its search and the redesigned game
+  page. Its links hand the bytes to a storage host only after the site mints a one-shot install
+  intent, so the source asks once when the page opens and keeps the address that actually serves the
+  file: GitHub and APKVision's storage download, while artefacts parked on a host that answers with a
+  web page are left off rather than saved as a broken archive.
+
+- **A second tap on Search opens the keyboard.** The tab already scrolled the list to the top; a tap
+  within 400 ms of the first now focuses the field and raises the keyboard, so a search from anywhere
+  in the app starts typing instead of needing another tap. A single tap still goes to the top.
+
+### Fixed
+
+- **An APKVision page lists every file it publishes.** The filter behind the file list accepted only
+  `.apk`, `.xapk` and `.zip` on `dl.apkvision.org`, so ports whose game data is a `.rar`, `.7z` or
+  `.iso`, split bundles saved as `.apks`, and both mirrors on `dl.apkvision.net` and
+  `dl2.apkvision.net` were dropped. The page now reads a file from the site's own storage hosts
+  whatever the extension, labels it with the file's name, and keeps the host and edition as the note.
+  Darkwatch shows its APK and both 4.65 GB RAR mirrors; God of War Collection still shows its zip.
+
+- **Every source's file list prints the size of every file it lists.** The rows for 5play and
+  GetModsAPK read the name from their blob but not the size, AN1 printed the size inside the download
+  button, and APKVision's mirrors wrote it beside the link in prose. Zip, rar, 7z, iso and every other
+  archive now show their own size on the row, beside the package's, instead of an empty column.
+
+- **An app's page shows the transfer it asked for, whichever row is moving.** The install card's
+  strip was tied to the catalogue's own row, so a game data file downloading beside a finished
+  package, or a file fetched from a mirror the picker offered, kept its progress in the dock and the
+  queue and nowhere on the page. The strip now follows the moving row: downloading, verifying,
+  paused, queued, then the package. An unknown total shows the indeterminate bar and the bytes
+  instead of waiting for a size that may never arrive.
+- **The page's control speaks for the same row as the strip.** A paused transfer now offers Resume
+  on the page's own pill, not Install, so the two controls on the screen cannot disagree. When the
+  moving row is not the page's package, the strip names the file it belongs to.
+- **A mirror's download stays attached to the page that asked.** A file fetched through the source
+  picker is stored under its own listing, which made the catalogue page blind to it. The row now
+  records the page that requested it, so the catalogue page and every card that opens it follow the
+  transfer, while the mirror's own source page still recognises the row it started.
+
 ## [1.8.2] - 2026-11-20
 
 ### Fixed

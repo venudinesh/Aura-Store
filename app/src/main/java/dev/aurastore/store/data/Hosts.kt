@@ -37,6 +37,7 @@ object Hosts {
         "an1.co" to "https://an1.com/",
         "an1.net" to "https://an1.com/",
         "apkvision.org" to "https://apkvision.org/",
+        "apkports.com" to "https://apkports.com/",
     )
 
     /** Hosts observed refusing a request even when it is correctly signed. */

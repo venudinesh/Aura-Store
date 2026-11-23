@@ -35,7 +35,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -102,11 +101,14 @@ import dev.aurastore.store.theme.StandardEasing
 import dev.aurastore.store.ui.ActionKind
 import dev.aurastore.store.ui.AppCard
 import dev.aurastore.store.ui.ArtImage
+import dev.aurastore.store.ui.FactTable
 import dev.aurastore.store.ui.Glyph
 import dev.aurastore.store.ui.GlyphIcon
+import dev.aurastore.store.ui.Hairline
 import dev.aurastore.store.ui.InfoRow
 import dev.aurastore.store.ui.InstallButton
 import dev.aurastore.store.ui.LocalNavBarInset
+import dev.aurastore.store.ui.Metric
 import dev.aurastore.store.ui.PlayBadge
 import dev.aurastore.store.ui.PlayChip
 import dev.aurastore.store.ui.PostIcon
@@ -116,6 +118,8 @@ import dev.aurastore.store.ui.ScreenshotCard
 import dev.aurastore.store.ui.SectionHeader
 import dev.aurastore.store.ui.Share
 import dev.aurastore.store.ui.StateMessage
+import dev.aurastore.store.ui.StoreCard
+import dev.aurastore.store.ui.TransferProgress
 import dev.aurastore.store.ui.VerificationDialog
 import dev.aurastore.store.ui.formatCount
 import dev.aurastore.store.ui.formatDate
@@ -201,6 +205,27 @@ class DetailViewModel(private val postId: Long) : ViewModel() {
     }
 }
 
+internal fun detailRows(rows: List<DownloadItem>, postId: Long): List<DownloadItem> =
+    rows.filter { it.postId == postId || it.originPostId == postId }
+
+/**
+ * The row this page reports progress for.
+ *
+ * A post can own two rows: the package and the game data the catalogue published with it. The page
+ * must follow whichever is actually moving, because a finished package beside a data file that is
+ * still downloading is exactly the moment the page used to go silent. A moved row beats a waiting
+ * one, a paused row keeps the bytes it has, and with nothing moving the package is the row to show.
+ */
+internal fun detailTransferRow(rows: List<DownloadItem>): DownloadItem? {
+    fun first(state: DownloadState) = rows.firstOrNull { it.state == state }
+    return first(DownloadState.DOWNLOADING)
+        ?: first(DownloadState.VERIFYING)
+        ?: first(DownloadState.PAUSED)
+        ?: first(DownloadState.QUEUED)
+        ?: rows.firstOrNull { !it.dataFile }
+        ?: rows.firstOrNull()
+}
+
 @Composable
 fun DetailScreen(
     postId: Long,
@@ -214,7 +239,7 @@ fun DetailScreen(
     // This page's own row, not the queue. Filtered at the flow, so another app's progress tick does
     // not recompose a page about this one four times a second.
     val rows by remember(postId) {
-        DownloadEngine.items.map { list -> list.filter { it.postId == postId } }
+        DownloadEngine.items.map { list -> detailRows(list, postId) }
     }.collectAsStateWithLifecycle(emptyList())
     val actions = rememberStoreActions()
     var menuOpen by remember { mutableStateOf(false) }
@@ -241,6 +266,14 @@ fun DetailScreen(
     // The app's own row. A game's expansion file is queued beside it as a second row, and this page is
     // about the package.
     val item = rows.firstOrNull { !it.dataFile }
+    // The row the install card reports progress for. The page used to watch only the package, so a
+    // data file moving beside a finished package showed its progress in the dock and the queue but
+    // nowhere on the page that asked for it.
+    val transfer = detailTransferRow(rows)
+    // The row the page's own control speaks for: the one moving, and with nothing moving the package.
+    // The pill and its caption used to follow the package alone, so a paused data file left the page
+    // offering Install while the dock offered Resume.
+    val shown = transfer ?: item
     val installRecord: InstallRecord? = installs[postId]
 
     // What the update entry needs: the package, the build this page offers, and what the device runs.
@@ -275,26 +308,26 @@ fun DetailScreen(
             Updates.isNewer(installedBuild, detail?.summary?.latestVersion) &&
                 Updates.isNewer(installedBuild, offeredBuild)
         }
-    val action = actionFor(installRecord, item)
+    val action = actionFor(installRecord, shown)
     val chosen = state.artefacts.getOrNull(state.selected)
 
     // One gesture for the whole page: the big pill and the build row resolve the same decision, so
     // the two can never disagree about what a tap does.
     val primaryClick: () -> Unit = {
         when {
-            item?.state == DownloadState.READY && item.uninstallFirst -> actions.uninstallFirst(item)
-            item?.state == DownloadState.READY ||
-                item?.state == DownloadState.NEEDS_PERMISSION ||
-                item?.state == DownloadState.AWAITING_CONFIRMATION -> actions.install(item)
-            item?.state == DownloadState.PAUSED -> actions.resume(item)
-            item?.state == DownloadState.FAILED -> actions.resume(item)
+            shown?.state == DownloadState.READY && shown.uninstallFirst -> actions.uninstallFirst(shown)
+            shown?.state == DownloadState.READY ||
+                shown?.state == DownloadState.NEEDS_PERMISSION ||
+                shown?.state == DownloadState.AWAITING_CONFIRMATION -> actions.install(shown)
+            shown?.state == DownloadState.PAUSED -> actions.resume(shown)
+            shown?.state == DownloadState.FAILED -> actions.resume(shown)
             action.kind == ActionKind.OPEN -> {
                 // The queue's own package name covers an install that finished through the system
                 // sheet before its record was written.
-                val pkg = installRecord?.packageName ?: item?.apkPackage
+                val pkg = installRecord?.packageName ?: shown?.apkPackage
                 if (pkg != null) Installer.launch(context, pkg)
             }
-            item != null && item.isActive -> DownloadEngine.toggle(context, item.id)
+            shown != null && shown.isActive -> DownloadEngine.toggle(context, shown.id)
             chosen != null && !QuickInstall.runsOn(chosen.file, Api.deviceAbis) ->
                 Toast.makeText(context, R.string.toast_build_not_for_device, Toast.LENGTH_LONG).show()
             chosen != null && detail != null ->
@@ -489,10 +522,13 @@ fun DetailScreen(
                 // ------------------------------------------------------- install and its caption
                 item(key = "install") {
                     StoreCard(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-                        if (item != null && (item.isActive || item.state == DownloadState.PAUSED) &&
-                            item.totalBytes > 0
+                        if (transfer != null &&
+                            (transfer.isActive || transfer.state == DownloadState.PAUSED)
                         ) {
-                            TransferStrip(item)
+                            TransferProgress(
+                                transfer,
+                                showFileName = transfer.id != item?.id,
+                            )
                         }
                         InstallButton(
                             action = action,
@@ -502,10 +538,10 @@ fun DetailScreen(
                         Text(
                             // Only when there is no queued row to describe: a row that is already
                             // downloading has a truer caption than the catalogue's shortfall.
-                            if (noBuildForDevice && item == null) {
+                            if (noBuildForDevice && shown == null) {
                                 stringResource(R.string.caption_no_build_for_device, Api.deviceAbi)
                             } else {
-                                installCaption(action, item, installRecord)
+                                installCaption(action, shown, installRecord)
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1086,121 +1122,6 @@ private fun HeroButton(
     }
 }
 
-/**
- * The page's card: a hairline-edged sheet on the page colour, with the corner the rest of the store
- * uses for a large surface. One definition, so every section sits at the same weight.
- */
-@Composable
-private fun StoreCard(
-    modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-    ) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
-    }
-}
-
-/** One figure in the facts strip: value, its glyph, and what the number counts. */
-@Composable
-private fun RowScope.Metric(glyph: Glyph, value: String, label: String) {
-    Column(
-        Modifier.weight(1f).padding(horizontal = 2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                value,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.width(4.dp))
-            GlyphIcon(
-                glyph,
-                size = 15.dp,
-                tint = if (glyph == Glyph.Star) RatingStar else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Spacer(Modifier.height(2.dp))
-        Text(
-            label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-/** The seam between two figures. */
-@Composable
-private fun Hairline() {
-    Box(
-        Modifier
-            .width(1.dp)
-            .height(32.dp)
-            .background(MaterialTheme.colorScheme.outlineVariant),
-    )
-}
-
-/**
- * The live transfer, inside the install card: the bar, the bytes that have landed, and the rate.
- *
- * The line mirrors the notification's, so the two places that report progress say the same thing
- * about the same row.
- */
-@Composable
-private fun TransferStrip(item: DownloadItem) {
-    // A host that withheld the length must not turn the strip into "0% · 12 MB / 0 B": the percent
-    // and the total are both unknown, so the strip shows the one number it has and keeps moving.
-    val sized = item.totalBytes > 0
-    val bytes = if (sized) {
-        "${DownloadEngine.humanSize(item.bytesDownloaded)} / ${DownloadEngine.humanSize(item.totalBytes)}"
-    } else {
-        stringResource(R.string.detail_transfer_unknown, DownloadEngine.humanSize(item.bytesDownloaded))
-    }
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (sized) {
-            LinearProgressIndicator(
-                progress = { item.progress },
-                modifier = Modifier.fillMaxWidth().height(6.dp).clip(PillShape),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            )
-        } else {
-            LinearProgressIndicator(
-                modifier = Modifier.fillMaxWidth().height(6.dp).clip(PillShape),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            )
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                if (sized) "${stringResource(R.string.percent_int, (item.progress * 100).toInt())} · $bytes" else bytes,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f),
-            )
-            if (item.isActive && item.bytesPerSecond > 0) {
-                Text(
-                    stringResource(
-                        R.string.detail_transfer_speed,
-                        DownloadEngine.humanSize(item.bytesPerSecond),
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
 /** The catalogue's editorial note: a mark, the claim, the caveat, and the way into the full note. */
 @Composable
 private fun EditorialCard(
@@ -1242,31 +1163,6 @@ private fun EditorialCard(
                         GlyphIcon(Glyph.ChevronRight, size = 16.dp)
                     }
                 }
-            }
-        }
-    }
-}
-
-/** Label on the left, value on the right, a hairline between each pair. */
-@Composable
-private fun FactTable(rows: List<Pair<String, String>>) {
-    Column {
-        rows.forEachIndexed { index, row ->
-            if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    row.first,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.width(112.dp),
-                )
-                Text(
-                    row.second,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
             }
         }
     }

@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.annotation.StringRes
 import androidx.activity.SystemBarStyle
@@ -456,6 +457,10 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
     var catalogueRefresh by remember { mutableIntStateOf(0) }
     // Retapping the tab already showing scrolls its list up, the way Play's does.
     var scrollTop by remember { mutableIntStateOf(0) }
+    // A double tap on the Search tab is the shortcut to the field: the tab is already open, so the
+    // second tap raises the keys. The tick is the request; the screen owns the field.
+    var searchFocusTick by remember { mutableIntStateOf(0) }
+    var lastSearchTapAt by remember { mutableLongStateOf(0L) }
     // The queue is read in narrow projections rather than as one list. A transfer publishes a
     // progress tick about four times a second, and collecting the list here meant every tick recomposed
     // the whole shell — brand bar, the page under it, the bar and the panel — which is exactly the
@@ -793,6 +798,7 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
                                         push(Route.Source(id))
                                     },
                                     onOpenSourceApp = { app -> push(Route.SourcePage(app)) },
+                                    focusRequest = searchFocusTick,
                                 )
 
                                 3 -> FeedScreen(
@@ -891,9 +897,19 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
                                 // clears the stack rather than unwinding it: a tab is a floor, and
                                 // pressing one is a decision to be there, not a step backwards.
                                 val retapped = tab == screen && stack.isEmpty()
+                                val now = SystemClock.uptimeMillis()
                                 stack = emptyList()
                                 visit(screen)
-                                if (retapped) scrollTop++
+                                if (retapped) {
+                                    // A second tap on Search inside the double-tap window asks for
+                                    // the keys. Every other retap keeps the trip to the top.
+                                    if (screen == 2 && now - lastSearchTapAt <= 400L) {
+                                        searchFocusTick++
+                                    } else {
+                                        scrollTop++
+                                    }
+                                }
+                                if (screen == 2) lastSearchTapAt = now
                             },
                         )
                     }

@@ -746,6 +746,7 @@
     <string name="source_note_getmodsapk">Laravel catalogue, mirror pages</string>
     <string name="source_note_an1">Modded games, direct file links</string>
     <string name="source_note_apkvision">Direct and modded Android packages</string>
+    <string name="source_note_apkports">Console and PC games ported to Android</string>
 
     <!-- The You tab. -->
     <string name="you_checking">Checking the catalogue…</string>
@@ -794,6 +795,14 @@
     <string name="action_download">Download</string>
     <string name="src_open_page">Open page</string>
     <string name="src_app_page">App page</string>
+    <string name="src_fact_files">Files</string>
+    <string name="src_fact_source">Source</string>
+    <string name="src_page_fact">Page</string>
+    <string name="src_file_title">File</string>
+    <string name="src_file_badge">FILE</string>
+    <string name="src_files_note">Everything %1$s publishes for this page</string>
+    <string name="src_caption_idle">Served from %1$s</string>
+    <string name="src_disclaimer">%1$s is a third-party site. The file is served from it, not from the developer.</string>
 
     <!-- The sheet that asks which source a download comes from. -->
     <string name="src_picker_body">Choose a source. Each answer is resolved to a direct file link before you download it.</string>

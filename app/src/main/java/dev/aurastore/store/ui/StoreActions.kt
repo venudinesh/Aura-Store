@@ -57,31 +57,45 @@ class StoreActions(
 ) {
 
     fun actionFor(post: PostSummary, installs: Map<Long, InstallRecord>, downloads: List<DownloadItem>): RowAction {
-        // The app's own row, never the game data queued beside it.
-        val item = downloads.firstOrNull { it.postId == post.id && !it.dataFile }
-        return when (item?.state) {
-            DownloadState.DOWNLOADING -> RowAction(ActionKind.DOWNLOADING, item.progress)
-            DownloadState.QUEUED -> RowAction(ActionKind.QUEUED, item.progress)
-            DownloadState.VERIFYING -> RowAction(ActionKind.VERIFYING, item.progress)
-            DownloadState.PAUSED -> RowAction(ActionKind.PAUSED)
-            DownloadState.READY -> RowAction(
-                ActionKind.INSTALL,
-                label = when {
-                    item.archive -> context.getString(R.string.row_menu_save)
-                    item.uninstallFirst -> context.getString(R.string.action_uninstall)
-                    else -> null
-                },
-            )
-            DownloadState.NEEDS_PERMISSION -> RowAction(ActionKind.PERMISSION)
-            // The sheet is open somewhere behind this app and only the user can answer it; the row
-            // offers Install again so there is always a control that does something.
-            DownloadState.AWAITING_CONFIRMATION -> RowAction(ActionKind.INSTALL)
-            DownloadState.FAILED -> RowAction(ActionKind.FAILED)
-            // The queue already knows it installed, whether or not the post -> package record made
-            // it to disk yet.
-            DownloadState.INSTALLED -> RowAction(ActionKind.OPEN)
-            else -> if (installs.containsKey(post.id)) RowAction(ActionKind.OPEN) else RowAction(ActionKind.INSTALL)
+        // The app's own row, never the game data queued beside it. A row fetched by a mirror is the
+        // app's row too: its listing id is the mirror's, and the page that asked is this post.
+        val item = downloads.firstOrNull {
+            (it.postId == post.id || it.originPostId == post.id) && !it.dataFile
         }
+        val idle = if (installs.containsKey(post.id)) RowAction(ActionKind.OPEN) else RowAction(ActionKind.INSTALL)
+        return actionFor(item, idle)
+    }
+
+    /**
+     * The same label for one row, where the row itself is the question rather than a post.
+     *
+     * A source page lists files, not a catalogue package, so it has no install record to consult.
+     * [idle] is what the row says when the queue has no state for it: a catalogue post with a record
+     * says Open, a source file still says Download.
+     */
+    fun actionFor(item: DownloadItem?, idle: RowAction): RowAction = when (item?.state) {
+        DownloadState.DOWNLOADING -> RowAction(ActionKind.DOWNLOADING, item.progress)
+        DownloadState.QUEUED -> RowAction(ActionKind.QUEUED, item.progress)
+        DownloadState.VERIFYING -> RowAction(ActionKind.VERIFYING, item.progress)
+        DownloadState.PAUSED -> RowAction(ActionKind.PAUSED)
+        DownloadState.READY -> RowAction(
+            ActionKind.INSTALL,
+            label = when {
+                item.archive -> context.getString(R.string.row_menu_save)
+                item.dataFile -> context.getString(R.string.action_add_data)
+                item.uninstallFirst -> context.getString(R.string.action_uninstall)
+                else -> null
+            },
+        )
+        DownloadState.NEEDS_PERMISSION -> RowAction(ActionKind.PERMISSION)
+        // The sheet is open somewhere behind this app and only the user can answer it; the row
+        // offers Install again so there is always a control that does something.
+        DownloadState.AWAITING_CONFIRMATION -> RowAction(ActionKind.INSTALL)
+        DownloadState.FAILED -> RowAction(ActionKind.FAILED)
+        // The queue already knows it installed, whether or not the post -> package record made
+        // it to disk yet.
+        DownloadState.INSTALLED -> RowAction(ActionKind.OPEN)
+        else -> idle
     }
 
     /**
@@ -94,7 +108,9 @@ class StoreActions(
     @Composable
     fun liveAction(post: PostSummary, installs: Map<Long, InstallRecord>): RowAction {
         val rows by remember(post.id) {
-            DownloadEngine.items.map { list -> list.filter { it.postId == post.id && !it.dataFile } }
+            DownloadEngine.items.map { list ->
+                list.filter { (it.postId == post.id || it.originPostId == post.id) && !it.dataFile }
+            }
         }.collectAsStateWithLifecycle(emptyList())
         return actionFor(post, installs, rows)
     }
@@ -111,26 +127,43 @@ class StoreActions(
      * the only moment the answer is worth computing.
      */
     fun runPrimary(post: PostSummary, askForSource: Boolean = true) {
+        val item = DownloadEngine.items.value.firstOrNull {
+            (it.postId == post.id || it.originPostId == post.id) && !it.dataFile
+        }
+        if (item != null) {
+            primary(item)
+            return
+        }
         val installs = AppState.installs.value
-        val item = DownloadEngine.items.value.firstOrNull { it.postId == post.id && !it.dataFile }
+        if (installs.containsKey(post.id)) {
+            installs[post.id]?.packageName?.let { Installer.launch(context, it) }
+        } else if (askForSource) {
+            enqueue(post)
+        } else {
+            enqueueDirect(post)
+        }
+    }
+
+    /**
+     * The click that matches [actionFor] for one row.
+     *
+     * The same row can be drawn on a catalogue page or a source page; the state decides what its
+     * control does, and that answer must not depend on which page drew it.
+     */
+    fun primary(item: DownloadItem) {
         when {
-            item != null && item.state == DownloadState.NEEDS_PERMISSION ->
+            item.state == DownloadState.NEEDS_PERMISSION ->
                 Installer.openUnknownSourcesSettings(context)
-            item != null && item.state == DownloadState.READY && item.uninstallFirst ->
+            item.state == DownloadState.READY && item.uninstallFirst ->
                 uninstallFirst(item)
-            item != null && (item.state == DownloadState.READY || item.state == DownloadState.AWAITING_CONFIRMATION) ->
-                if (item.archive) saveToDevice(item) else DownloadEngine.install(context, item.id)
-            item != null && item.state == DownloadState.PAUSED -> DownloadEngine.resume(context, item.id)
-            item != null && item.state == DownloadState.FAILED -> DownloadEngine.retry(context, item.id)
-            item != null && item.state == DownloadState.INSTALLED ->
+            item.state == DownloadState.READY || item.state == DownloadState.AWAITING_CONFIRMATION ->
+                install(item)
+            item.state == DownloadState.PAUSED -> DownloadEngine.resume(context, item.id)
+            item.state == DownloadState.FAILED || item.state == DownloadState.CANCELED ->
+                DownloadEngine.resume(context, item.id)
+            item.state == DownloadState.INSTALLED ->
                 item.apkPackage?.let { Installer.launch(context, it) }
-            item != null && item.isActive -> DownloadEngine.toggle(context, item.id)
-            installs.containsKey(post.id) -> {
-                val pkg = installs[post.id]?.packageName
-                if (pkg != null) Installer.launch(context, pkg)
-            }
-            askForSource -> enqueue(post)
-            else -> enqueueDirect(post)
+            item.isActive -> DownloadEngine.toggle(context, item.id)
         }
     }
 
