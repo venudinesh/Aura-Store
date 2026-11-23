@@ -3,6 +3,15 @@
 All notable changes to Aura Store. The format follows [Keep a Changelog](https://keepachangelog.com/),
 and the project uses `MAJOR.MINOR.PATCH` versions.
 
+## [1.8.4] - 2026-11-23
+
+### Changed
+
+- **The 1.8.3 release under a new version.** `1.8.4 (10804)` is the 1.8.3 tree with the version name
+  and code raised, so a 1.8.3 install is offered the update. APKPorts as the seventh Browse source,
+  the catalogue page's shape on every source's app page, the size on every file row and the search
+  tab's double tap are unchanged.
+
 ## [1.8.3] - 2026-11-20
 
 ### Added
