@@ -3,6 +3,25 @@
 All notable changes to Aura Store. The format follows [Keep a Changelog](https://keepachangelog.com/),
 and the project uses `MAJOR.MINOR.PATCH` versions.
 
+## [1.9.2] - 2026-11-24
+
+### Changed
+
+- **The home's newest list comes from every source.** The Games home used to end on the catalogue's
+  own newest posts, so the first screen read as one site's feed. The default *Last Update* view now
+  draws one row from every source the reader has on, taken a round at a time so LiteAPKs, 9MOD,
+  5play, GetModsAPK, AN1, ApkVision and APKPorts all reach the first screen. Each row keeps its
+  source label; a catalogue row opens its post, every other row opens the source's own page. The
+  ranking chips still draw the catalogue's lists, and a page whose sources all refuse falls back to
+  the catalogue rows.
+
+### Fixed
+
+- **5play pages list their files again.** The site rebuilt its download box around `nx-file` rows
+  linking `/en/download/<id>-<slug>.html`; the reader still expected the older `?do=cdn&id=` links,
+  so every 5play app opened on *This page has no downloadable file*. Both shapes are read now, and
+  the signed R2 address behind the row is still resolved before the file is offered.
+
 ## [1.9.1] - 2026-11-24
 
 ### Changed

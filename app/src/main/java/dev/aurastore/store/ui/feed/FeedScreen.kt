@@ -68,6 +68,7 @@ import dev.aurastore.store.ui.PlayChip
 import dev.aurastore.store.ui.ScrollToTopOnRetap
 import dev.aurastore.store.ui.ScrollRevealHost
 import dev.aurastore.store.ui.SectionHeader
+import dev.aurastore.store.ui.SourceAppRow
 import dev.aurastore.store.ui.StateMessage
 import dev.aurastore.store.ui.StatusLine
 import dev.aurastore.store.ui.SwipeStep
@@ -182,6 +183,13 @@ data class FeedState(
     val serverError: StatusLine? = null,
     val serverMoreError: StatusLine? = null,
     val topCharts: List<PostSummary> = emptyList(),
+    /**
+     * The Games home's cross-server newest list.
+     *
+     * The catalogue's own posts still fill [topCharts] for the ranking chips; this is what the
+     * default *new* view draws instead, one row from every source the reader has on.
+     */
+    val newestEverywhere: List<SourceApp> = emptyList(),
     /** Another page of the flat list is in flight; the rows on screen stay where they are. */
     val loadingMore: Boolean = false,
     /** Whether the flat list can be asked for a page it has not had. */
@@ -215,6 +223,10 @@ class FeedViewModel(private val kind: FeedKind) : ViewModel() {
     private var topPager: ListPager? = null
     private val railPagers = mutableMapOf<String, ListPager>()
     private var moreJob: Job? = null
+    /** The cross-server newest read; cancelled when the sources change or a refresh replaces it. */
+    private var newestJob: Job? = null
+    /** The enabled-source set the current newest list was read for. */
+    private var newestSources: Set<String>? = null
     /** The selected server's shelf, cancelled when another server is picked. */
     private var serverJob: Job? = null
     /** One category's page walk, cancelled when another category or server is picked. */
@@ -245,6 +257,7 @@ class FeedViewModel(private val kind: FeedKind) : ViewModel() {
                     )
                 }
                 loadPosts()
+                loadNewestEverywhere()
                 loadServerLayout()
             } catch (e: Exception) {
                 _state.update {
@@ -260,7 +273,27 @@ class FeedViewModel(private val kind: FeedKind) : ViewModel() {
 
     fun reload() {
         started = false
+        loadNewestEverywhere(force = true)
         start()
+    }
+
+    /**
+     * Reads the newest app from every source the reader has on.
+     *
+     * The Games home draws this in place of the catalogue's own newest posts, so it is read once
+     * when the tab opens and again whenever the enabled sources change. A source that cannot answer
+     * contributes nothing; the catalogue list underneath is still there when every source refuses.
+     */
+    fun loadNewestEverywhere(force: Boolean = false) {
+        if (kind != FeedKind.GAMES) return
+        val enabled = Settings.sources.value
+        if (!force && enabled == newestSources) return
+        newestSources = enabled
+        newestJob?.cancel()
+        newestJob = viewModelScope.launch {
+            val apps = runCatching { SourceHub.newest(enabled) }.getOrDefault(emptyList())
+            _state.update { current -> current.copy(newestEverywhere = apps) }
+        }
     }
 
     /**
@@ -552,6 +585,7 @@ class FeedViewModel(private val kind: FeedKind) : ViewModel() {
             return
         }
         loadPosts()
+        loadNewestEverywhere(force = true)
         viewModelScope.launch { loadServerLayout() }
         if (kind == FeedKind.BROWSE && _state.value.server != SourceId.LITEAPKS) {
             // A pull says "read it again", so the section cache is not allowed to answer.
@@ -627,6 +661,10 @@ class FeedViewModel(private val kind: FeedKind) : ViewModel() {
     fun loadMore() {
         val pager = topPager ?: return
         val current = _state.value
+        // The default Games view draws the cross-server rows instead of the catalogue's flat list.
+        if (kind == FeedKind.GAMES && current.sort == "modified" && current.newestEverywhere.isNotEmpty()) {
+            return
+        }
         if (current.topCharts.isEmpty() || current.loading || current.loadingMore || !pager.hasMore) return
         _state.update { it.copy(loadingMore = true, moreError = null) }
         moreJob?.cancel()
@@ -841,6 +879,10 @@ fun FeedScreen(
             viewModel.selectServer(servers.first().id)
         }
     }
+    // The Games home's newest list follows the sources the reader has on.
+    LaunchedEffect(enabledSources) {
+        if (kind == FeedKind.GAMES) viewModel.loadNewestEverywhere()
+    }
     ScrollToTopOnRetap(scrollTopKey, listState)
 
     // The server strip is the swipe here, not the app tab. Browse holds one tab per site, so a
@@ -998,7 +1040,28 @@ fun FeedScreen(
             }
         }
 
-        if (state.topCharts.isNotEmpty()) {
+        val crossServer = kind == FeedKind.GAMES && state.sort == "modified"
+        if (crossServer && state.newestEverywhere.isNotEmpty()) {
+            item {
+                SectionHeader(
+                    stringResource(R.string.feed_everywhere_title),
+                    subtitle = stringResource(R.string.feed_everywhere_subtitle),
+                )
+            }
+            itemsIndexed(
+                state.newestEverywhere,
+                key = { _, app -> "${app.source.name}:${app.key}" },
+            ) { position, app ->
+                SourceAppRow(
+                    app = app,
+                    modifier = Modifier.playEnter(state.generation, position),
+                    onClick = {
+                        val postId = app.cataloguePostId
+                        if (postId != null) onOpenPost(postId) else onOpenSourceApp(app)
+                    },
+                )
+            }
+        } else if (state.topCharts.isNotEmpty()) {
             item {
                 SectionHeader(
                     when (state.sort) {

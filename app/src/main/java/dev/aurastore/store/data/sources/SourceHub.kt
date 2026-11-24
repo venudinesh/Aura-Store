@@ -128,7 +128,28 @@ object SourceHub {
         return section
     }
 
-    /** The apps of one category, read through the source that published the category. */
+    /**
+     * Every enabled source's newest apps, one source at a time.
+     *
+     * The home's newest list used to be the catalogue's own posts, so the first screen read as one
+     * site's feed while six other sources sat behind the Browse tab. Each source's [Source.latest] is
+     * asked in parallel, its first [perSource] rows are kept, and the rows are taken a round at a
+     * time so the first screen carries every source before any one of them gets a second row. A
+     * title two sources both publish is kept once, from the source earlier in [Sources.all].
+     */
+    suspend fun newest(enabled: Set<String>, perSource: Int = 6): List<SourceApp> = coroutineScope {
+        Sources.enabled(enabled).map { source ->
+            async {
+                withContext(Dispatchers.IO) {
+                    runCatching { source.latest() }.getOrDefault(emptyList())
+                }
+            }
+        }.awaitAll().let { lists -> interleaveNewest(lists, perSource) }
+    }
+
+    /**
+     * The apps of one category, read through the source that published the category.
+     */
     suspend fun appsIn(source: SourceId, category: SourceCategory): List<SourceApp> {
         val adapter = Sources.all.firstOrNull { it.id == source } ?: return emptyList()
         return withContext(Dispatchers.IO) {
@@ -240,3 +261,33 @@ object SourceHub {
         cache.clear()
     }
 }
+
+/**
+ * The newest rows from each source, taken a round at a time.
+ *
+ * Every source publishes its own order, and the sources do not share a clock this app can sort by,
+ * so a merge cannot be chronological. Taking one row per source per round is the honest shape: the
+ * first screen carries every source before any one of them gets a second row, and the row's own
+ * source label says where it came from. A title that two sources both publish is kept once, from
+ * the source earlier in [Sources.all], because two rows for the same app would read as a bug.
+ */
+internal fun interleaveNewest(lists: List<List<SourceApp>>, perSource: Int = 6): List<SourceApp> {
+    val seen = HashSet<String>()
+    val kept = lists.map { apps ->
+        apps.asSequence()
+            .filter { app ->
+                val key = app.title.lowercase().filter(Char::isLetterOrDigit)
+                key.isBlank() || seen.add(key)
+            }
+            .take(perSource)
+            .toList()
+    }
+    return buildList {
+        var round = 0
+        while (kept.any { round < it.size }) {
+            kept.forEach { apps -> apps.getOrNull(round)?.let(::add) }
+            round++
+        }
+    }
+}
+

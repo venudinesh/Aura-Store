@@ -844,6 +844,8 @@
     <string name="feed_unavailable">Catalogue unavailable</string>
     <string name="feed_top_charts">%1$s top charts</string>
     <string name="feed_new_updated">New &amp; updated in %1$s</string>
+    <string name="feed_everywhere_title">New from every server</string>
+    <string name="feed_everywhere_subtitle">The latest apps from every source you have on</string>
     <string name="feed_recently_updated">Recently updated in %1$s</string>
     <string name="feed_trending">Trending in %1$s this week</string>
     <string name="feed_most_viewed">Most viewed in %1$s</string>

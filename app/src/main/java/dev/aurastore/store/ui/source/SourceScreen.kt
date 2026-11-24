@@ -56,6 +56,7 @@ import dev.aurastore.store.ui.LoadingRail
 import dev.aurastore.store.ui.PlayChip
 import dev.aurastore.store.ui.ScrollRevealHost
 import dev.aurastore.store.ui.SectionHeader
+import dev.aurastore.store.ui.SourceAppRow
 import dev.aurastore.store.ui.StateMessage
 import dev.aurastore.store.ui.playClickable
 import dev.aurastore.store.ui.playEnter
@@ -479,46 +480,6 @@ fun SourceScreen(
             }
         }
     }
-    }
-}
-
-@Composable
-private fun SourceAppRow(
-    app: SourceApp,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier.fillMaxWidth().playClickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ArtImage(
-            url = app.iconUrl,
-            title = app.title,
-            modifier = Modifier.size(52.dp),
-        )
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Text(app.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            val meta = listOfNotNull(app.version, app.size, app.subtitle).joinToString(" · ")
-            if (meta.isNotBlank()) {
-                Text(
-                    meta,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Text(
-                app.source.label,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        GlyphIcon(Glyph.ChevronRight, size = 20.dp, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

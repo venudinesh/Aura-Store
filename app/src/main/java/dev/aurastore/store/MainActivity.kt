@@ -778,6 +778,7 @@ fun StoreApp(deepLink: MutableState<String?> = mutableStateOf(null)) {
                                 0 -> FeedScreen(
                                     FeedKind.GAMES,
                                     onOpenPost = { push(Route.Detail(it)) },
+                                    onOpenSourceApp = { app -> push(Route.SourcePage(app)) },
                                     refreshKey = catalogueRefresh,
                                     scrollTopKey = scrollTop,
                                     listState = gamesScroll,

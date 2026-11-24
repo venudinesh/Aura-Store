@@ -598,13 +598,37 @@ object FivePlaySource : Source {
         return SourceDetail(description = description, screenshots = screenshots)
     }
 
-    /** Pure: `(do=cdn url, label)` pairs inside the download box. */
-    fun parseFileLinks(html: String, base: String): List<Pair<String, String>> =
-        Regex("href=\"([^\"]*\\?do=cdn&(?:amp;)?id=\\d+)\"[^>]*>(.*?)</a>", RegexOption.DOT_MATCHES_ALL)
+    /**
+     * Pure: `(download page url, label)` pairs inside the download box.
+     *
+     * The site has drawn this box two ways. Older pages link the CDN interstitial as
+     * `?do=cdn&id=<n>`; the current pages draw an `nx-file` row whose body names the file and its
+     * size, and whose href is `/en/download/<n>-<slug>.html`. Both are read, so a page the site has
+     * not rebuilt yet still lists its files.
+     */
+    fun parseFileLinks(html: String, base: String): List<Pair<String, String>> {
+        val legacy = Regex("""href="([^"]*\?do=cdn&(?:amp;)?id=\d+)"[^>]*>(.*?)</a>""", RegexOption.DOT_MATCHES_ALL)
             .findAll(html)
             .map { m -> Web.absolute(base, m.groupValues[1].replace("&amp;", "&")) to Web.text(m.groupValues[2]) }
-            .distinctBy { it.first }
-            .toList()
+        val current = Regex(
+            """<a\b([^>]*\bclass="[^"]*\bnx-file\b[^"]*"[^>]*)>([\s\S]*?)</a>""",
+            RegexOption.IGNORE_CASE,
+        ).findAll(html).mapNotNull { match ->
+            val href = tagAttribute(match.groupValues[1], "href") ?: return@mapNotNull null
+            val body = match.groupValues[2]
+            val bodyText = Web.text(body)
+            val title = Regex(
+                """<span\b[^>]*class="[^"]*\bnx-file__title\b[^"]*"[^>]*>([\s\S]*?)</span>""",
+                RegexOption.IGNORE_CASE,
+            ).find(body)?.groupValues?.get(1)?.let(Web::text)?.trim().orEmpty()
+            // The meta span nests the extension span, so its text is read from the body instead of
+            // from the first `</span>` the title's own regex would stop at.
+            val meta = bodyText.removePrefix(title).trim().trimStart('·').trim()
+            val label = listOf(title, meta).filter { it.isNotBlank() }.joinToString(" · ")
+            Web.absolute(base, href) to label
+        }
+        return (legacy + current).distinctBy { it.first }.toList()
+    }
 
     /** Pure: the signed R2 URL from the `Downloading file …` interstitial. */
     fun parseCdnLink(html: String): String? =

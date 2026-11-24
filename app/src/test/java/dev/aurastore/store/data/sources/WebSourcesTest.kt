@@ -143,6 +143,33 @@ class WebSourcesTest {
         assertTrue(direct.contains("X-Amz-Signature="))
     }
 
+    @Test
+    fun `5play reads the current nx-file download row`() {
+        val page = """
+            <a class="nx-file" href="https://5play.org/en/download/174821-clockmaker-107.0.0-mod-t-5play.html" rel="nofollow" data-file-id="174821">
+                <span class="nx-file__kind" aria-hidden="true"><svg class="nx-i"><use href="#i-package"/></svg></span>
+                <span class="nx-file__body">
+                    <span class="nx-file__title">Download Clockmaker - Amazing Match 3 v107.0.0 (MOD Free shopping).apk</span>
+                    <span class="nx-file__meta"><span class="nx-file__ext">apk</span> · 142.25 Mb</span>
+                </span>
+                <span class="nx-file__go" aria-hidden="true"><svg class="nx-i"><use href="#i-download"/></svg></span>
+            </a>
+        """.trimIndent()
+
+        val links = FivePlaySource.parseFileLinks(
+            page,
+            "https://5play.org/en/5344-clockmaker-amazing-match-3.html",
+        )
+
+        assertEquals(1, links.size)
+        assertEquals(
+            "https://5play.org/en/download/174821-clockmaker-107.0.0-mod-t-5play.html",
+            links.single().first,
+        )
+        assertTrue(links.single().second.contains("Clockmaker"))
+        assertTrue(links.single().second.contains("142.25 Mb"))
+    }
+
     // ------------------------------------------------------------ GetModsAPK
 
     @Test
