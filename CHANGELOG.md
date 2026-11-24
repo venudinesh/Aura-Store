@@ -3,6 +3,30 @@
 All notable changes to Aura Store. The format follows [Keep a Changelog](https://keepachangelog.com/),
 and the project uses `MAJOR.MINOR.PATCH` versions.
 
+## [1.9.0] - 2026-11-24
+
+### Added
+
+- **The store offers its own updates inside the app.** A new release opens a card with the app's
+  mark, the version, the build pills and the notes, and one full-width action. The banner stays on
+  the first screen until the release is installed, so putting the card down does not hide the
+  update. While a newer version is pending, the twelve-hour check throttle is bypassed and every
+  launch reads the release again.
+
+- **APKPorts publishes every file a game page lists.** Google Drive links are followed through the
+  confirmation form to the address that serves bytes, Yandex Disk links through the public-resource
+  API. Hosts that wrap a download in their own page (vexfile, Gofile, ModsFire) are no longer
+  dropped: the row keeps the real link and opens it in the browser, where the host's own button
+  works. A failed unlock no longer empties the page either; the buttons stay and open in the
+  browser. A ROMFS archive keeps its own extension.
+
+### Fixed
+
+- **An in-app update installs over the old build instead of saving the APK.** The offer started on
+  whatever build the stored preference named, so a release install with a stale debug preference
+  turned *Update now* into *Save APK*. The offer now starts on the build this installation can
+  replace; the other build stays one explicit tap away and says it will be saved.
+
 ## [1.8.4] - 2026-11-23
 
 ### Changed

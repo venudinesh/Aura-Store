@@ -69,6 +69,17 @@ data class AppRelease(
         UpdateBuild.RELEASE -> builds.firstOrNull { !it.debug }
         UpdateBuild.DEBUG -> builds.firstOrNull { it.debug }
     }
+
+    /**
+     * The build the offer starts on.
+     *
+     * A stored preference for the other signature names a file this copy cannot install. Letting it
+     * preselect turned the main action into *Save APK* on a release install whose preference was
+     * left on debug. The preference still preselects when it can replace this copy; otherwise the
+     * offer starts on [installed] and the other build stays one explicit tap away.
+     */
+    fun startingBuild(prefer: UpdateBuild, canReplace: (AppBuild) -> Boolean): AppBuild =
+        build(prefer)?.takeIf(canReplace) ?: installed
 }
 
 /**

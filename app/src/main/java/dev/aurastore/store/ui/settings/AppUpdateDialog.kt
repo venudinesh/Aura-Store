@@ -2,15 +2,21 @@ package dev.aurastore.store.ui.settings
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -21,12 +27,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.aurastore.store.R
 import dev.aurastore.store.data.AppBuild
 import dev.aurastore.store.data.AppRelease
@@ -35,21 +46,24 @@ import dev.aurastore.store.data.Settings
 import dev.aurastore.store.update.AppUpdateFailure
 import dev.aurastore.store.update.AppUpdateState
 import dev.aurastore.store.update.AppUpdater
+import dev.aurastore.store.ui.Glyph
+import dev.aurastore.store.ui.GlyphIcon
 import dev.aurastore.store.ui.humanSize
 import kotlin.math.roundToInt
 
 /**
  * The offer to replace this installation with a newer GitHub release.
  *
- * When the release published both builds, the dialog lets the user choose. The choice is a file, not
- * a promise: a build signed with another key cannot be installed over this copy — Android refuses it
- * — so the action becomes *Save APK* and the file lands in the phone's Downloads folder with the same
- * hash check. The offer defaults to the build this installation can actually take.
+ * It is drawn as a card rather than the platform's alert: the store's own icon, the version, the
+ * notes and one full-width action, which is what a notification about the app itself should look
+ * like. The notes scroll inside a cap so a long release body cannot push the buttons off the phone.
  *
- * The notes are the release body, so they scroll rather than push the buttons off the dialog. The
- * download's bar is pinned above them: the notes are longer than the dialog, and a bar that scrolls
- * with them is a bar nobody sees while the bytes arrive. The hash is verified before the installer
- * opens, and a failure says which check refused the file rather than leaving the dialog silent.
+ * The offer starts on the build this installation can take. A stored preference for the other
+ * signature is a file Android will refuse; it no longer turns the main action into *Save APK* by
+ * accident. The other build is still a pill, and picking it says plainly that it will be saved.
+ *
+ * The download's bar is pinned above the notes. The hash is verified before the installer opens, and
+ * a failure names the check that refused the file rather than leaving the card silent.
  */
 @Composable
 fun AppUpdateDialog(
@@ -62,17 +76,57 @@ fun AppUpdateDialog(
     val downloading = state as? AppUpdateState.Downloading
     val busy = downloading != null || state is AppUpdateState.Installing
     val saved = state as? AppUpdateState.Saved
-    var picked by remember(release.tag) { mutableStateOf<AppBuild?>(null) }
+    val preferredBuild by Settings.appUpdateBuild.collectAsStateWithLifecycle()
+    val starting = release.startingBuild(preferredBuild) {
+        AppUpdater.canReplace(context, it)
+    }
+    var picked by remember(release.tag) { mutableStateOf(starting) }
     val chosen = picked
-        ?: release.build(Settings.appUpdateBuild.value)
-        ?: release.installed
     val installable = AppUpdater.canReplace(context, chosen)
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.app_update_title, release.version.text)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 6.dp,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+        ) {
+            Column(
+                Modifier.padding(horizontal = 22.dp, vertical = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(48.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            GlyphIcon(
+                                Glyph.Update,
+                                size = 24.dp,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            stringResource(R.string.app_update_title, release.version.text),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            stringResource(R.string.app_update_ready),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
                 // The two published builds, when there are two. A pill carries its own size, because
                 // the debug APK is several times the signed one and that is the fact that decides it.
                 if (release.builds.size > 1) {
@@ -84,7 +138,7 @@ fun AppUpdateDialog(
                                 color = if (selected) {
                                     MaterialTheme.colorScheme.primaryContainer
                                 } else {
-                                    MaterialTheme.colorScheme.surfaceContainerHigh
+                                    MaterialTheme.colorScheme.surfaceContainerLow
                                 },
                                 modifier = Modifier
                                     .weight(1f)
@@ -126,6 +180,7 @@ fun AppUpdateDialog(
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
+
                 when (state) {
                     is AppUpdateState.Downloading -> {
                         LinearProgressIndicator(
@@ -162,12 +217,18 @@ fun AppUpdateDialog(
                     )
                     else -> Unit
                 }
+
                 // The notes are the one part that scrolls, and they are capped so a long release body
-                // cannot squeeze the progress block or the two buttons off the phone.
+                // cannot squeeze the progress block or the action off the phone.
                 Column(
-                    Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    Modifier.heightIn(max = 200.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    Text(
+                        stringResource(R.string.app_update_whats_new),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
                     Text(
                         release.notes.ifBlank { stringResource(R.string.app_update_no_notes) },
                         style = MaterialTheme.typography.bodyMedium,
@@ -178,34 +239,38 @@ fun AppUpdateDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (saved != null) onDismiss() else onInstall(chosen)
-                },
-                enabled = !busy,
-            ) {
-                Text(
-                    stringResource(
-                        when {
-                            saved != null -> R.string.app_update_done
-                            installable -> R.string.app_update_now
-                            else -> R.string.app_update_save
-                        },
-                    ),
-                )
-            }
-        },
-        dismissButton = {
-            if (saved == null) {
-                TextButton(onClick = onDismiss, enabled = !busy) {
-                    Text(stringResource(R.string.app_update_later))
+
+                Button(
+                    onClick = {
+                        if (saved != null) onDismiss() else onInstall(chosen)
+                    },
+                    enabled = !busy,
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                ) {
+                    Text(
+                        stringResource(
+                            when {
+                                saved != null -> R.string.app_update_done
+                                installable -> R.string.app_update_now
+                                else -> R.string.app_update_save
+                            },
+                        ),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+                if (saved == null) {
+                    TextButton(
+                        onClick = onDismiss,
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.app_update_later))
+                    }
                 }
             }
-        },
-    )
+        }
+    }
 }
 
 /** Which published build a pill names. */

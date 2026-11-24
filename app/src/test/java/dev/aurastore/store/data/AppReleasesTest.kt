@@ -107,6 +107,25 @@ class AppReleasesTest {
     }
 
     @Test
+    fun aPreferenceThatCannotReplaceThisCopyDoesNotStartTheOffer() {
+        val release = AppReleases.parse(release(), debuggable = false)!!
+        // A release install whose stored preference is debug must still start on the signed build:
+        // the debug file can only be saved, and saving is not what "Update now" means.
+        assertEquals(
+            "Aura-Store-v1.1.0.apk",
+            release.startingBuild(UpdateBuild.DEBUG) { !it.debug }.name,
+        )
+        assertEquals(
+            "Aura-Store-v1.1.0-debug.apk",
+            release.startingBuild(UpdateBuild.DEBUG) { true }.name,
+        )
+        assertEquals(
+            "Aura-Store-v1.1.0.apk",
+            release.startingBuild(UpdateBuild.AUTO) { true }.name,
+        )
+    }
+
+    @Test
     fun aBuildTheReleaseDoesNotCarryIsNullNotTheOtherBuild() {
         val onlySigned = AppReleases.parse(
             release(assets = asset("Aura-Store-v1.1.0.apk", "https://example.test/a.apk", 10)),

@@ -121,12 +121,20 @@ object AppUpdater {
      *
      * Silent about being current and about a version whose offer was already shown; a failure is
      * also left for the Settings row rather than covering the first screen of the app.
+     *
+     * A version whose offer was put down is not forgotten: while it is newer than what is installed,
+     * the throttle is bypassed so every launch can read the release again and put its banner back.
+     * The read is one GitHub call; the offer itself still appears only once per version.
      */
     fun autoCheck(context: Context) {
         val app = context.applicationContext
         if (!Settings.appAutoUpdate.value) return
         val now = System.currentTimeMillis()
-        if (now - Settings.appUpdateCheckedAt.value < CHECK_EVERY_MS) return
+        val pending = Settings.appUpdatePrompted.value
+        val installedVersion = installed(app).version
+        val awaitingInstall = pending != null && installedVersion != null &&
+            AppVersion.parse(pending)?.let { it > installedVersion } == true
+        if (!awaitingInstall && now - Settings.appUpdateCheckedAt.value < CHECK_EVERY_MS) return
         check(app, manual = false)
     }
 

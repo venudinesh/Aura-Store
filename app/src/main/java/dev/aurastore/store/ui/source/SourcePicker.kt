@@ -1,6 +1,7 @@
 package dev.aurastore.store.ui.source
 
 import android.content.Context
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
@@ -46,6 +47,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.aurastore.store.R
 import dev.aurastore.store.data.DownloadFile
@@ -355,8 +357,12 @@ fun SourcePickerSheet(onDismiss: () -> Unit) {
                             SourceFileCard(
                                 file = file,
                                 onDownload = {
-                                    enqueueSourceFile(context, selectedApp, file, request?.cataloguePostId)
-                                    Toast.makeText(context, queued, Toast.LENGTH_SHORT).show()
+                                    if (file.viaBrowser) {
+                                        openSourceFile(context, file)
+                                    } else {
+                                        enqueueSourceFile(context, selectedApp, file, request?.cataloguePostId)
+                                        Toast.makeText(context, queued, Toast.LENGTH_SHORT).show()
+                                    }
                                     onDismiss()
                                 },
                             )
@@ -500,7 +506,10 @@ private fun SourceFileCard(file: SourceFile, onDownload: () -> Unit) {
                     contentPadding = PaddingValues(horizontal = 18.dp),
                     modifier = Modifier.height(36.dp),
                 ) {
-                    Text(stringResource(R.string.action_download), style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        stringResource(if (file.viaBrowser) R.string.action_open else R.string.action_download),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
                 }
             }
         }
@@ -583,6 +592,23 @@ private fun FileSkeletons() {
 }
 
 /**
+ * Opens a file whose host gates its download behind a page of its own.
+ *
+ * The browser is the only client that can answer those hosts' human checks; handing the page to it
+ * is the honest alternative to hiding the file. A resolved file is never opened this way — it goes
+ * to the queue, where pause, resume, hash and install already work.
+ */
+internal fun openSourceFile(context: Context, file: SourceFile): Boolean {
+    if (!file.viaBrowser) return false
+    return runCatching {
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, file.url.toUri())
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }.isSuccess
+}
+
+/**
  * Sends a resolved source file into the same queue the catalogue's downloads use.
  *
  * A source row has no catalogue post behind it, so the row's post is a stable pseudo-id built from
@@ -595,6 +621,10 @@ internal fun enqueueSourceFile(
     file: SourceFile,
     originPostId: Long? = null,
 ) {
+    if (file.viaBrowser) {
+        openSourceFile(context, file)
+        return
+    }
     // A catalogue file carries the post it belongs to, so the app's own page recognises the row while
     // it downloads and after it installs. A source-only answer has no post, and its stable pseudo-id
     // is built from the source's own key: the queue keeps one row per (post, url), and the key is

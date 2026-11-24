@@ -65,30 +65,45 @@ object ApkPortsSource : Source {
     }
 
     /**
-     * The page's download buttons that hand out bytes.
+     * The page's download buttons, resolved as far as each host allows.
      *
-     * The page also lists artefacts it parks on file hosts that answer with a web page — vexfile,
-     * Google Drive, Gofile — and a queue pointed at one of those saves the page instead of the
-     * game. Each link is asked where it redirects, with the site's one-shot intent for the game,
-     * and only the links that land on a storage host are published. A link that cannot be read is
-     * left out rather than offered as a download that fails on the tap.
+     * The page links `/dl/<game>/file/<file>` rather than a storage host. Each link is asked where
+     * it redirects, with the site's one-shot intent for the game, because a second unlock inside the
+     * site's cooldown is answered with the game page.
      *
-     * The storage address is what the queue gets, not the unlock link. The unlock is spent the
-     * moment it is asked for — a second request for the same game inside the site's cooldown is
-     * answered with the game page — so the resolved address is the one that still works an hour
-     * later. GitHub and APKVision's storage name their files, which is where the saved name comes
-     * from.
+     * A landing on GitHub or APKVision's storage is the file itself. Google Drive answers a large
+     * file with a confirmation form, and Yandex with a public-resource API: both are followed to
+     * the address that serves bytes. Every other host — vexfile, Gofile, ModsFire — wraps the file
+     * in a page this app cannot press, so its link is kept and marked [SourceFile.viaBrowser].
+     * Dropping those was why a page could show one APK and hide the several data archives beside it.
+     *
+     * The storage address is what the queue gets for an in-app file, not the unlock link: the unlock
+     * is spent the moment it is asked for, while the storage address still works an hour later.
+     * GitHub and APKVision's storage name their files, which is where the saved name comes from.
      */
     override suspend fun files(app: SourceApp): List<SourceFile> {
         val pageUrl = app.pageUrl ?: app.key
         val parsed = parseFiles(Web.get(pageUrl), pageUrl, app.title)
         if (parsed.isEmpty()) return parsed
-        val game = parsed.firstNotNullOfOrNull { parseGameId(it.url) } ?: return parsed
-        val token = mintIntent(game)
-        return parsed.mapNotNull { file ->
-            val landing = runCatching { Web.redirect(withIntent(file.url, token), BASE) }.getOrNull()
-            if (landing == null || !isDirect(landing)) return@mapNotNull null
-            file.copy(url = landing, fileName = nameOf(landing) ?: file.fileName)
+        val game = parsed.firstNotNullOfOrNull { parseGameId(it.url) }
+        // A failed mint is not an empty page: the buttons still exist, and their own page can finish
+        // the unlock in a browser. The files are marked for the browser below instead of vanishing.
+        val token = game?.let { runCatching { mintIntent(it) }.getOrNull() }
+        return parsed.map { file ->
+            val landing = token
+                ?.let { runCatching { Web.redirect(withIntent(file.url, it), BASE) }.getOrNull() }
+                ?: return@map file.copy(viaBrowser = true)
+            val direct = when {
+                isDirect(landing) -> landing
+                isDrive(landing) -> runCatching { resolveDrive(landing) }.getOrNull()
+                isYandex(landing) -> runCatching { resolveYandex(landing) }.getOrNull()
+                else -> null
+            }
+            if (direct != null) {
+                file.copy(url = direct, fileName = nameOf(direct) ?: file.fileName)
+            } else {
+                file.copy(url = landing, viaBrowser = true)
+            }
         }
     }
 
@@ -297,21 +312,100 @@ object ApkPortsSource : Source {
      * Whether a link's destination serves the bytes itself.
      *
      * GitHub hands release assets to `release-assets.githubusercontent.com`; APKVision's own
-     * storage answers on `dl.apkvision.org` and `dl.apkvision.net`. Every other host the site
-     * uses wraps the file in a page with its own button, which this app cannot press.
+     * storage answers on `dl.apkvision.org` and `dl.apkvision.net`. Drive and Yandex are not in
+     * this list because they need one more step ([resolveDrive], [resolveYandex]); every other host
+     * the site uses wraps the file in a page with its own button and is offered as a browser link.
      */
     internal fun isDirect(url: String): Boolean =
         url.toHttpUrlOrNull()?.host?.let(DIRECT_HOSTS::matches) == true
 
+    /** True when [url] is a Google Drive file page, which needs the confirmation step. */
+    internal fun isDrive(url: String): Boolean =
+        url.toHttpUrlOrNull()?.host?.let { DRIVE_HOST.matches(it) } == true
+
+    /** True when [url] is a Yandex Disk public link, which the public-resource API can open. */
+    internal fun isYandex(url: String): Boolean =
+        url.toHttpUrlOrNull()?.host?.let { YANDEX_HOST.matches(it) } == true
+
+    /** The Drive file id in a `/file/d/<id>/view` link or an `?id=<id>` link. */
+    internal fun driveId(url: String): String? =
+        DRIVE_ID.find(url)?.groupValues?.get(1)
+
+    /**
+     * Pure: the direct address Drive's own confirmation form points at.
+     *
+     * A file over the scan limit is answered with a page whose `download-form` carries the signed
+     * `uuid` that turns the warning away. Rebuilding that form's action and fields is the same
+     * request a browser makes when its *Download anyway* button is pressed.
+     */
+    internal fun driveFormUrl(html: String): String? {
+        val form = Regex(
+            """<form\b[^>]*\bid="download-form"[^>]*>([\s\S]*?)</form>""",
+            RegexOption.IGNORE_CASE,
+        ).find(html) ?: return null
+        val action = tagAttribute(form.value, "action") ?: return null
+        val fields = Regex("""<input\b[^>]*>""", RegexOption.IGNORE_CASE)
+            .findAll(form.groupValues[1])
+            .mapNotNull { input ->
+                val name = tagAttribute(input.value, "name") ?: return@mapNotNull null
+                name to (tagAttribute(input.value, "value") ?: "")
+            }
+            .toList()
+        return action.toHttpUrlOrNull()?.newBuilder()?.apply {
+            fields.forEach { (name, value) -> addQueryParameter(name, value) }
+        }?.build()?.toString()
+    }
+
+    /** Drive's `/file/d/<id>/view` page into the address that serves its bytes. */
+    private fun resolveDrive(landing: String): String? {
+        val id = driveId(landing) ?: return null
+        var next = "https://drive.google.com/uc?export=download&id=$id"
+        // `uc` answers with a 303 to a page that looks like the file until its content type is read;
+        // that page carries the form whose `uuid` turns the scan warning away. Three hops is more
+        // than Drive uses, and the loop stops the moment a hop serves bytes.
+        repeat(3) {
+            val hop = Web.peek(next, range = "bytes=0-0")
+            hop.location?.let {
+                next = it
+                return@repeat
+            }
+            driveFormUrl(hop.body.orEmpty())?.let { return it }
+            if (hop.status in 200..299 && hop.contentType?.startsWith("text/html") != true) {
+                return next
+            }
+            return null
+        }
+        return null
+    }
+
+    /** Yandex's public page into the signed download address its API hands out. */
+    private fun resolveYandex(landing: String): String? {
+        val json = Web.get(
+            "https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=" + Web.encode(landing),
+        )
+        return runCatching { JSONObject(json).optString("href") }.getOrNull()
+            ?.takeIf { it.startsWith("http") }
+    }
+
     /** The filename a storage link ends in, or null when it ends in an id or nothing. */
-    internal fun nameOf(url: String): String? =
-        percentDecode(url.substringBefore('#').substringBefore('?').substringAfterLast('/'))
+    internal fun nameOf(url: String): String? {
+        // Yandex's signed address ends in `/download`; the name is a query parameter beside it.
+        Regex("""[?&](?:filename|file|name)=([^&#]+)""", RegexOption.IGNORE_CASE)
+            .find(url)?.groupValues?.get(1)?.let(::percentDecode)
+            ?.takeIf { '.' in it && '/' !in it }
+            ?.let { return it }
+        return percentDecode(url.substringBefore('#').substringBefore('?').substringAfterLast('/'))
             .takeIf { it.isNotBlank() && '.' in it }
+    }
 
     private val DIRECT_HOSTS = Regex(
         """(?:github\.com|objects\.githubusercontent\.com|release-assets\.githubusercontent\.com|dl\d*\.apkvision\.(?:org|net))""",
         RegexOption.IGNORE_CASE,
     )
+
+    private val DRIVE_HOST = Regex("""(?:drive|docs)\.google\.com""", RegexOption.IGNORE_CASE)
+    private val DRIVE_ID = Regex("""(?:/file/d/|[?&]id=)([A-Za-z0-9_-]{10,})""")
+    private val YANDEX_HOST = Regex("""(?:disk\.yandex\.(?:ru|com)|yadi\.sk)""", RegexOption.IGNORE_CASE)
 
     /** The site's unlock step: one intent per game, which every file of that game accepts. */
     fun mintIntent(gameId: String): String {
@@ -360,6 +454,7 @@ object ApkPortsSource : Source {
         "APKS" -> ".apks"
         "XAPK" -> ".xapk"
         "OBB" -> ".obb"
+        "ROMFS" -> ".romfs"
         "ZIP" -> ".zip"
         "RAR" -> ".rar"
         "7Z" -> ".7z"

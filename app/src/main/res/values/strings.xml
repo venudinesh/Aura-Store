@@ -618,6 +618,8 @@
     <string name="settings_version_latest">You are on the newest build</string>
     <string name="settings_version_available">Version %1$s is available</string>
     <string name="app_update_title">Aura Store %1$s</string>
+    <string name="app_update_ready">A new build is ready to install.</string>
+    <string name="app_update_whats_new">What\'s new</string>
     <string name="app_update_check_now">Check now</string>
     <string name="app_update_checking">Checking GitHub releases…</string>
     <string name="app_update_auto">Update Aura Store automatically</string>
@@ -802,6 +804,7 @@
     <string name="src_file_badge">FILE</string>
     <string name="src_files_note">Everything %1$s publishes for this page</string>
     <string name="src_caption_idle">Served from %1$s</string>
+<string name="src_browser_caption">%1$s hosts this file on its own page. It opens in your browser.</string>
     <string name="src_disclaimer">%1$s is a third-party site. The file is served from it, not from the developer.</string>
 
     <!-- The sheet that asks which source a download comes from. -->

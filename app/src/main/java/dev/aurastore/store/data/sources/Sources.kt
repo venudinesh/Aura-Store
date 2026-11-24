@@ -114,6 +114,15 @@ data class SourceFile(
      * is kept here so the download lands as the file the site meant.
      */
     val fileName: String? = null,
+    /**
+     * True when the link is a storage site's page rather than the bytes themselves.
+     *
+     * A host that wraps every download in its own countdown or human check cannot be read by the
+     * queue. The file is still published and still real: tapping it opens that page in the browser,
+     * where the host's own button is the one that works. Everything else resolves to a direct URL
+     * and downloads inside the store.
+     */
+    val viaBrowser: Boolean = false,
 )
 
 /**
@@ -290,6 +299,46 @@ internal object Web {
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw IOException("HTTP ${response.code} on $url")
             return response.body.string()
+        }
+    }
+
+    /**
+     * One response's head, without following a redirect.
+     *
+     * Google Drive answers a large file with a page carrying its own confirmation form instead of
+     * the bytes. Reading that first answer, and only its HTML, is how the form is found; the file
+     * itself is never pulled into memory. A range request is passed through where the caller only
+     * needs to know whether a URL serves bytes.
+     */
+    data class Peek(
+        val status: Int,
+        val contentType: String?,
+        val location: String?,
+        val body: String?,
+    )
+
+    fun peek(url: String, referer: String? = null, range: String? = null): Peek {
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", UA)
+            .header("Accept", "text/html,application/json;q=0.9,*/*;q=0.8")
+            .apply {
+                if (referer != null) header("Referer", referer)
+                if (range != null) header("Range", range)
+            }
+            .build()
+        noRedirect.newCall(request).execute().use { response ->
+            val type = response.header("Content-Type")
+            val textual = type == null ||
+                type.startsWith("text/", ignoreCase = true) ||
+                type.contains("json", ignoreCase = true) ||
+                type.contains("xml", ignoreCase = true)
+            return Peek(
+                status = response.code,
+                contentType = type?.substringBefore(';')?.trim(),
+                location = response.header("Location")?.let { absolute(url, it) },
+                body = if (textual) response.body.string() else null,
+            )
         }
     }
 

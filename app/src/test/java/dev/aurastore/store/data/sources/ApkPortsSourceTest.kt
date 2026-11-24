@@ -143,7 +143,17 @@ class ApkPortsSourceTest {
     }
 
     @Test
-    fun `keeps the links whose host serves bytes and drops the pages`() {
+    fun `a ROMFS archive keeps its own extension`() {
+        val page = """
+            <a class="download-artifact-card tone-data" href="/dl/a4fae8b8-709c-4d09-82fc-0be90af8fd39/file/c4188d71-40dc-476d-915a-ff6bd3ee6260"><span class="download-artifact-copy"><strong>Download Game data mirror</strong></span><span class="download-artifact-meta"><span class="download-artifact-size">11.0 GB</span><span class="download-artifact-type">ROMFS</span></span></a>
+        """.trimIndent()
+        val files = ApkPortsSource.parseFiles(page, "https://apkports.com/game/assassins-creed-iv-black-flag-a4fae8", "AC4")
+
+        assertEquals("AC4 - Game data mirror.romfs", files.single().fileName)
+    }
+
+    @Test
+    fun `knows which hosts serve bytes and which need a browser`() {
         assertTrue(ApkPortsSource.isDirect("https://github.com/a/b/releases/download/v1/Game.apk"))
         assertTrue(ApkPortsSource.isDirect("https://dl.apkvision.org/felvidek/Felvidek-v1.0.4-full-apkvision.apk"))
         assertTrue(ApkPortsSource.isDirect("https://dl.apkvision.net/left-4-dead/L4D.7z"))
@@ -152,6 +162,43 @@ class ApkPortsSourceTest {
         assertFalse(ApkPortsSource.isDirect("https://drive.google.com/file/d/1P1ZLbzjP7U7U6PUsBd3nOQAoYMVMjw-T/view"))
         assertFalse(ApkPortsSource.isDirect("https://gofile.io/d/abc"))
         assertFalse(ApkPortsSource.isDirect("not a url"))
+
+        assertTrue(ApkPortsSource.isDrive("https://drive.google.com/file/d/1P1ZLbzjP7U7U6PUsBd3nOQAoYMVMjw-T/view?usp=sharing"))
+        assertTrue(ApkPortsSource.isDrive("https://docs.google.com/uc?id=1P1ZLbzjP7U7U6PUsBd3nOQAoYMVMjw-T"))
+        assertFalse(ApkPortsSource.isDrive("https://vexfile.com/download/q5bRPbzLSj"))
+        assertTrue(ApkPortsSource.isYandex("https://disk.yandex.ru/d/VflkuyBTcQcpzw"))
+        assertTrue(ApkPortsSource.isYandex("https://yadi.sk/d/VflkuyBTcQcpzw"))
+        assertFalse(ApkPortsSource.isYandex("https://gofile.io/d/abc"))
+    }
+
+    @Test
+    fun `reads the Drive id and rebuilds its confirmation form`() {
+        assertEquals(
+            "1P1ZLbzjP7U7U6PUsBd3nOQAoYMVMjw-T",
+            ApkPortsSource.driveId("https://drive.google.com/file/d/1P1ZLbzjP7U7U6PUsBd3nOQAoYMVMjw-T/view?usp=sharing"),
+        )
+        assertEquals(
+            "1P1ZLbzjP7U7U6PUsBd3nOQAoYMVMjw-T",
+            ApkPortsSource.driveId("https://drive.google.com/uc?export=download&id=1P1ZLbzjP7U7U6PUsBd3nOQAoYMVMjw-T"),
+        )
+        assertNull(ApkPortsSource.driveId("https://gofile.io/d/abc"))
+
+        val page = """
+            <form id="download-form" action="https://drive.usercontent.google.com/download" method="get">
+              <input type="submit" id="uc-download-link" value="Download anyway"/>
+              <input type="hidden" name="id" value="1P1ZLbzjP7U7U6PUsBd3nOQAoYMVMjw-T">
+              <input type="hidden" name="export" value="download">
+              <input type="hidden" name="confirm" value="t">
+              <input type="hidden" name="uuid" value="f18ad8bc-3aa2-47ff-8561-42c61cda5179">
+            </form>
+        """.trimIndent()
+        assertEquals(
+            "https://drive.usercontent.google.com/download" +
+                "?id=1P1ZLbzjP7U7U6PUsBd3nOQAoYMVMjw-T&export=download" +
+                "&confirm=t&uuid=f18ad8bc-3aa2-47ff-8561-42c61cda5179",
+            ApkPortsSource.driveFormUrl(page),
+        )
+        assertNull(ApkPortsSource.driveFormUrl("<html><body>no form</body></html>"))
     }
 
     @Test
@@ -165,6 +212,12 @@ class ApkPortsSourceTest {
             ApkPortsSource.nameOf("https://github.com/a/b/releases/download/v1/Shrek2-uni-0.1.0-27.apk?token=x"),
         )
         assertNull(ApkPortsSource.nameOf("https://dl.apkvision.org/x/85105ab7-14e8-4786-82c6-58b935766e1d"))
+        assertEquals(
+            "AC4-cache.romfs",
+            ApkPortsSource.nameOf(
+                "https://downloader.disk.yandex.ru/disk/abc/123/file?uid=0&filename=AC4-cache.romfs&disposition=attachment",
+            ),
+        )
         assertEquals(
             "https://apkports.com/dl/1/file/2?intent=abc",
             ApkPortsSource.withIntent("https://apkports.com/dl/1/file/2", "abc"),

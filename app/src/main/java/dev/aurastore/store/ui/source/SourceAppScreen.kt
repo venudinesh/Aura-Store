@@ -171,25 +171,41 @@ fun SourceAppScreen(
 
     val files = state.files
     // The package is what the big pill fetches; a page that publishes only data still gets a control,
-    // and the first file is the only honest choice then.
+    // and the first file is the only honest choice then. An in-app file comes before a browser page,
+    // so the main action is a real download whenever the page has one.
     val primaryFile = remember(files) {
-        files.firstOrNull { ApkExport.isPackage(nameOf(it)) } ?: files.firstOrNull()
+        files.firstOrNull { !it.viaBrowser && ApkExport.isPackage(nameOf(it)) }
+            ?: files.firstOrNull { !it.viaBrowser }
+            ?: files.firstOrNull { ApkExport.isPackage(nameOf(it)) }
+            ?: files.firstOrNull()
     }
     val primaryRow = rows.firstOrNull { it.url == primaryFile?.url }
+    val primaryBrowser = primaryFile?.viaBrowser == true
     val primaryAction = actions.actionFor(
         primaryRow,
-        idle = RowAction(ActionKind.INSTALL, label = stringResource(R.string.action_download)),
+        idle = RowAction(
+            if (primaryBrowser) ActionKind.OPEN else ActionKind.INSTALL,
+            label = stringResource(if (primaryBrowser) R.string.action_open else R.string.action_download),
+        ),
     )
     val primaryClick: () -> Unit = {
-        if (primaryRow != null) {
-            actions.primary(primaryRow)
-        } else if (primaryFile != null) {
-            enqueueSourceFile(context, app, primaryFile)
-            Toast.makeText(context, queued, Toast.LENGTH_SHORT).show()
+        when {
+            primaryBrowser && primaryFile != null -> openSourceFile(context, primaryFile)
+            primaryRow != null -> actions.primary(primaryRow)
+            primaryFile != null -> {
+                enqueueSourceFile(context, app, primaryFile)
+                Toast.makeText(context, queued, Toast.LENGTH_SHORT).show()
+            }
         }
     }
-    val caption = primaryRow?.let { statusText(downloadRowStatus(it)) }
-        ?: stringResource(R.string.src_caption_idle, app.source.label)
+    val caption = when {
+        primaryRow != null -> statusText(downloadRowStatus(primaryRow))
+        primaryBrowser -> stringResource(
+            R.string.src_browser_caption,
+            hostOf(primaryFile.url).orEmpty(),
+        )
+        else -> stringResource(R.string.src_caption_idle, app.source.label)
+    }
 
     LazyColumn(
         modifier,
@@ -327,16 +343,20 @@ fun SourceAppScreen(
                         action = actions.actionFor(
                             item,
                             idle = RowAction(
-                                ActionKind.INSTALL,
-                                label = stringResource(R.string.action_download),
+                                if (file.viaBrowser) ActionKind.OPEN else ActionKind.INSTALL,
+                                label = stringResource(
+                                    if (file.viaBrowser) R.string.action_open else R.string.action_download,
+                                ),
                             ),
                         ),
                         onAction = {
-                            if (item == null) {
-                                enqueueSourceFile(context, app, file)
-                                Toast.makeText(context, queued, Toast.LENGTH_SHORT).show()
-                            } else {
-                                actions.primary(item)
+                            when {
+                                file.viaBrowser -> openSourceFile(context, file)
+                                item == null -> {
+                                    enqueueSourceFile(context, app, file)
+                                    Toast.makeText(context, queued, Toast.LENGTH_SHORT).show()
+                                }
+                                else -> actions.primary(item)
                             }
                         },
                     )
