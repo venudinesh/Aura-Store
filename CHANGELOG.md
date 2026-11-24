@@ -3,6 +3,14 @@
 All notable changes to Aura Store. The format follows [Keep a Changelog](https://keepachangelog.com/),
 and the project uses `MAJOR.MINOR.PATCH` versions.
 
+## [1.9.1] - 2026-11-24
+
+### Changed
+
+- **The 1.9.0 release under a new version.** `1.9.1 (10901)` is the 1.9.0 tree with the version name
+  and code raised. The APKPorts link resolution and the in-app update card are unchanged; this cut
+  exists to exercise the update path from a published 1.9.0 install.
+
 ## [1.9.0] - 2026-11-24
 
 ### Added
